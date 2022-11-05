@@ -7,6 +7,27 @@
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="800">
     <Grid>
-
+        <TabControl Background="White" BorderBrush="#FF8C7DF4">
+            <TabItem Header="Линейное решение" BorderBrush="#FF8C7DF4" Background="#FFD2CCFD">
+                <Grid Background="White">
+                    <TextBox Name="PathALinearTextBox" HorizontalAlignment="Left" Margin="23,19,0,0" TextWrapping="Wrap" Text="Пути к файлу с матрицей" VerticalAlignment="Top" Width="195" Height="20"/>
+                    <Button Name="PathASearchLinearButton" Content="Проводник" HorizontalAlignment="Left" Margin="223,19,0,0" VerticalAlignment="Top" Width="70" Background="#FFD2CCFD" BorderBrush="#FF8C7DF4" Click="PathASearchLinearButton_Click"/>
+                    <ComboBox Name="LinearMethodsCombobox" HorizontalAlignment="Left" Margin="23,114,0,0" VerticalAlignment="Top" Width="270" Height="23" BorderBrush="#FF8C7DF4" Background="#FFD2CCFD"/>
+                    <TextBox Name="PathResLinearTextBox" HorizontalAlignment="Left" Margin="23,82,0,0" TextWrapping="Wrap" Text="Путь для сохранения результатов" VerticalAlignment="Top" Width="195" Height="20"/>
+                    <Button Name="PathResSearchLinearButton" Content="Проводник" HorizontalAlignment="Left" Margin="223,82,0,0" VerticalAlignment="Top" Width="70" Background="#FFD2CCFD" BorderBrush="#FF8C7DF4" RenderTransformOrigin="0.449,1.587" Click="PathResSearchLinearButton_Click"/>
+                    <Button Name="CalculateLinearButton" Content="Вычислить" HorizontalAlignment="Left" Margin="23,151,0,0" VerticalAlignment="Top" Background="#FFD2CCFD" BorderBrush="#FF8C7DF4" Width="80" Height="22" Click="CalculateLinearButton_Click"/>
+                    <Rectangle HorizontalAlignment="Left" Height="351" Margin="315,10,0,0" Stroke="#FFA295F7" StrokeThickness="3" VerticalAlignment="Top" Width="443"/>
+                    <TextBox Name="PathBLinearTextBox" HorizontalAlignment="Left" Margin="23,50,0,0" TextWrapping="Wrap" Text="Пути к файлу с вектором" VerticalAlignment="Top" Width="195" Height="20"/>
+                    <Button Name="LinearSolveButton" Content="Проводник" HorizontalAlignment="Left" Margin="223,50,0,0" VerticalAlignment="Top" Width="70" Background="#FFD2CCFD" BorderBrush="#FF8C7DF4" Click="PathBSearchLinearButton_Click"/>
+                    <Label Name="ResultsLabelTab1" HorizontalAlignment="Left" Margin="323,19,0,0" VerticalAlignment="Top" Height="315" Width="403"/>
+                </Grid>
+            </TabItem>
+            <TabItem Header="Распределённое решение" Background="#FFD2CCFD" BorderBrush="#FF8C7DF4">
+                <Grid Background="White"/>
+            </TabItem>
+            <TabItem Header="Сравнение решений" Background="#FFD2CCFD" BorderBrush="#FF8C7DF4">
+                <Grid Background="White"/>
+            </TabItem>
+        </TabControl>
     </Grid>
 </Window>
