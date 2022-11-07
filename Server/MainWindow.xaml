@@ -24,20 +24,22 @@
             </TabItem>
             <TabItem Header="Распределённое решение" Background="#FFD2CCFD" BorderBrush="#FF8C7DF4">
                 <Grid Background="White">
-                    <TextBox Name="PathAParallelTextBox" HorizontalAlignment="Left" Margin="23,85,0,0" TextWrapping="Wrap" Text="Пути к файлу с матрицей" VerticalAlignment="Top" Width="195" Height="20"/>
-                    <Button Name="PathASearchParallelButton" Content="Проводник" HorizontalAlignment="Left" Margin="223,85,0,0" VerticalAlignment="Top" Width="70" Background="#FFD2CCFD" BorderBrush="#FF8C7DF4" Click="PathASearchParallelButton_Click"/>
-                    <TextBox Name="PathResParallelTextBox" HorizontalAlignment="Left" Margin="23,136,0,0" TextWrapping="Wrap" Text="Путь для сохранения результатов" VerticalAlignment="Top" Width="195" Height="20"/>
-                    <Button Name="PathResSearchParallelButton" Content="Проводник" HorizontalAlignment="Left" Margin="223,136,0,0" VerticalAlignment="Top" Width="70" Background="#FFD2CCFD" BorderBrush="#FF8C7DF4" RenderTransformOrigin="0.449,1.587" Click="PathResSearchParallelButton_Click"/>
-                    <Button Name="CalculateParallelButton" Content="Вычислить" HorizontalAlignment="Left" Margin="23,176,0,0" VerticalAlignment="Top" Background="#FFD2CCFD" BorderBrush="#FF8C7DF4" Width="80" Height="22"/>
+                    <TextBox Name="PathAParallelTextBox" HorizontalAlignment="Left" Margin="23,121,0,0" TextWrapping="Wrap" Text="Пути к файлу с матрицей" VerticalAlignment="Top" Width="195" Height="20"/>
+                    <Button Name="PathASearchParallelButton" Content="Проводник" HorizontalAlignment="Left" Margin="223,121,0,0" VerticalAlignment="Top" Width="70" Background="#FFD2CCFD" BorderBrush="#FF8C7DF4" Click="PathASearchParallelButton_Click"/>
+                    <TextBox Name="PathResParallelTextBox" HorizontalAlignment="Left" Margin="23,171,0,0" TextWrapping="Wrap" Text="Путь для сохранения результатов" VerticalAlignment="Top" Width="195" Height="20"/>
+                    <Button Name="PathResSearchParallelButton" Content="Проводник" HorizontalAlignment="Left" Margin="223,171,0,0" VerticalAlignment="Top" Width="70" Background="#FFD2CCFD" BorderBrush="#FF8C7DF4" RenderTransformOrigin="0.449,1.587" Click="PathResSearchParallelButton_Click"/>
+                    <Button Name="CalculateParallelButton" Content="Вычислить" HorizontalAlignment="Left" Margin="23,203,0,0" VerticalAlignment="Top" Background="#FFD2CCFD" BorderBrush="#FF8C7DF4" Width="80" Height="22" Click="CalculateParallelButton_Click"/>
                     <Rectangle HorizontalAlignment="Left" Height="351" Margin="315,10,0,0" Stroke="#FFA295F7" StrokeThickness="3" VerticalAlignment="Top" Width="443"/>
-                    <TextBox Name="PathBParallelTextBox" HorizontalAlignment="Left" Margin="23,111,0,0" TextWrapping="Wrap" Text="Пути к файлу с вектором" VerticalAlignment="Top" Width="195" Height="20"/>
-                    <Button Name="PathBSearchParallelButton" Content="Проводник" HorizontalAlignment="Left" Margin="223,111,0,0" VerticalAlignment="Top" Width="70" Background="#FFD2CCFD" BorderBrush="#FF8C7DF4" Click="PathBSearchParallelButton_Click"/>
+                    <TextBox Name="PathBParallelTextBox" HorizontalAlignment="Left" Margin="23,146,0,0" TextWrapping="Wrap" Text="Пути к файлу с вектором" VerticalAlignment="Top" Width="195" Height="20"/>
+                    <Button Name="PathBSearchParallelButton" Content="Проводник" HorizontalAlignment="Left" Margin="223,146,0,0" VerticalAlignment="Top" Width="70" Background="#FFD2CCFD" BorderBrush="#FF8C7DF4" Click="PathBSearchParallelButton_Click"/>
                     <Label Name="ResultsLabelTab2" HorizontalAlignment="Left" Margin="323,19,0,0" VerticalAlignment="Top" Height="315" Width="403"/>
                     <Button Name="StartServerButton" Content="Запустить сервер" HorizontalAlignment="Left" Margin="183,19,0,0" VerticalAlignment="Top" Width="110" Background="#FFD2CCFD" BorderBrush="#FF8C7DF4" Click="StartServerButton_Click"/>
                     <TextBox Name="ServerPortTextBox" Text="8080" HorizontalAlignment="Left" Margin="137,20,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="41"/>
-                    <Label Content="Кол-во подключений:" HorizontalAlignment="Left" Margin="113,39,0,0" VerticalAlignment="Top"/>
-                    <TextBox Name="ClientsCountTextBox" IsReadOnly="True" HorizontalAlignment="Left" Margin="244,44,0,0" TextWrapping="Wrap" Text="0" VerticalAlignment="Top" Width="49"/>
+                    <Label Content="Кол-во подключений:" HorizontalAlignment="Left" Margin="86,69,0,0" VerticalAlignment="Top"/>
+                    <TextBox Name="ClientsCountTextBox" IsReadOnly="True" HorizontalAlignment="Left" Margin="223,73,0,0" TextWrapping="Wrap" Text="0" VerticalAlignment="Top" Width="70"/>
                     <TextBox Name="ServerIpTextBox" Text="127.0.0.1" HorizontalAlignment="Left" Margin="23,20,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="109" Height="18"/>
+                    <Label Content="Кол-во ожидаемых подключений:" HorizontalAlignment="Left" Margin="18,43,0,0" VerticalAlignment="Top"/>
+                    <TextBox Name="WaitClientsCountTextBox" HorizontalAlignment="Left" Margin="223,47,0,0" TextWrapping="Wrap" Text="1" VerticalAlignment="Top" Width="70"/>
                 </Grid>
             </TabItem>
             <TabItem Header="Сравнение решений" Background="#FFD2CCFD" BorderBrush="#FF8C7DF4">

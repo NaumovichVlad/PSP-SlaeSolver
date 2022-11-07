@@ -41,6 +41,17 @@ namespace DataAccess.Managers
             return vector.ToArray();
         }
 
+        public void SaveResults(string resultsPath, double[] results)
+        {
+            using (var sw = new StreamWriter(resultsPath))
+            {
+                foreach (var element in results)
+                {
+                    sw.WriteLine($"\t{element}");
+                }
+            }
+        }
+
         private double[] ParseLine(string line)
         {
             var pattern = $"\\s+";

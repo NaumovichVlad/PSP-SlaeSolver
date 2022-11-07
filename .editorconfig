@@ -1,0 +1,4 @@
+﻿[*.cs]
+
+# SYSLIB0006: Тип или член устарел
+dotnet_diagnostic.SYSLIB0006.severity = silent

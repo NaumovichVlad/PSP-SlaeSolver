@@ -1,23 +1,15 @@
-﻿using System.Net;
+﻿using Client;
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
-UdpClient sender = new UdpClient();
-try
+var server = new GaussSlaeSolver(8080, "127.0.0.1");
+
+if (server.Connect())
 {
-    while (true)
-    {
-        string message = Console.ReadLine();
-        byte[] data = Encoding.Unicode.GetBytes(message);
-        sender.Send(data, data.Length, "127.0.0.1", 8080); // отправка
-        Console.WriteLine("Sended");
-    }
+    Console.WriteLine("Connected to server");
 }
-catch (Exception ex)
+else
 {
-    Console.WriteLine(ex.Message);
-}
-finally
-{
-    sender.Close();
+    Console.WriteLine("Connection error");
 }
