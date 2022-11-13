@@ -1,8 +1,10 @@
 ﻿using Core.Methods.Linear;
 using Core.Methods.Parallel;
 using DataAccess.Managers;
+using Server.Loggers;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -16,12 +18,13 @@ namespace Server.Solvers
     {
         private readonly int _port;
         private readonly IPAddress _ipAddress;
-        private readonly Socket _socket;
+        private readonly Socket _server;
         private readonly List<IPEndPoint> _activeClients;
         private readonly List<IPEndPoint> _waitingClients;
         private readonly int _waitClientsNum;
 
         private readonly IFileManager _fileManager;
+        private readonly ITimeLogger _timeLogger;
         private readonly Thread _listeningTask;
 
         public delegate void ClientConnection(int count, string address);
@@ -29,16 +32,17 @@ namespace Server.Solvers
 
         public int ClientNum { get; private set; }
 
-        public ParallelSolver(int port, string ipAddress, IFileManager fileManager, int waitClientsNum)
+        public ParallelSolver(int port, string ipAddress, IFileManager fileManager, int waitClientsNum, ITimeLogger timeLogger)
         {
             _port = port;
             _ipAddress = IPAddress.Parse(ipAddress);
-            _socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            _server = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             _activeClients = new List<IPEndPoint>();
             _fileManager = fileManager;
             _listeningTask = new Thread(Listen);
             _waitingClients = new List<IPEndPoint>();
             _waitClientsNum = waitClientsNum;
+            _timeLogger = timeLogger;
         }
 
         public void StartServer()
@@ -52,8 +56,8 @@ namespace Server.Solvers
             {
                 var localIp = new IPEndPoint(_ipAddress, _port);
 
-                _socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.ReuseAddress, true);
-                _socket.Bind(localIp);
+                _server.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.ReuseAddress, true);
+                _server.Bind(localIp);
 
                 while (_activeClients.Count < _waitClientsNum)
                 {
@@ -64,10 +68,10 @@ namespace Server.Solvers
 
                     do
                     {
-                        bytes = _socket.ReceiveFrom(data, ref remoteIp);
+                        bytes = _server.ReceiveFrom(data, ref remoteIp);
                         builder.Append(Encoding.Unicode.GetString(data, 0, bytes));
                     }
-                    while (_socket.Available > 0);
+                    while (_server.Available > 0);
 
                     IPEndPoint remoteFullIp = remoteIp as IPEndPoint;
 
@@ -96,21 +100,38 @@ namespace Server.Solvers
             }
         }
 
-
         public double[] Solve(string pathA, string pathB, string pathRes)
         {
             _listeningTask.Interrupt();
+
+            Stopwatch stopwatch = new Stopwatch();
+
+            stopwatch.Start();
+
             var matrix = _fileManager.ReadMatrix(pathA);
             var vector = _fileManager.ReadVector(pathB);
+
+            stopwatch.Stop();
+
+            _timeLogger.ReadingTime = stopwatch.ElapsedMilliseconds;
+
+            stopwatch.Reset();
+            stopwatch.Start();
             
             SendRows(matrix, vector);
 
-            for (var i = 0; i < matrix.Length - 1; i++)
+            for (var i = 0; i < matrix.Length; i++)
             {
                 GetForwardPhase(i, matrix.Length);
             }
 
-             return GetBackPhase(matrix, vector);
+            var result = GetBackPhase(matrix, vector);
+
+            stopwatch.Stop();
+
+            _timeLogger.SolvingTime = stopwatch.ElapsedMilliseconds;
+
+            return result;
         }
 
         private void SendRows(double[][] matrix, double[] vector)
@@ -118,53 +139,34 @@ namespace Server.Solvers
             Parallel.For(0, _activeClients.Count, i =>
             {
                 var rowsCount = CalculateRowsCountForClient(matrix.Length, _activeClients.Count, i);
-                var request = BitConverter.GetBytes(rowsCount);
                 var vectorRequest = new double[rowsCount];
                 var iterator = 0;
 
-                _socket.SendTo(request, _activeClients[i]);
+                SendIntRequest(rowsCount, _activeClients[i]);
+                SendIntRequest(vector.Length, _activeClients[i]);
 
-                request = BitConverter.GetBytes(vector.Length);
-
-                _socket.SendTo(request, _activeClients[i]);
 
                 for (var j = i; j < vector.Length; j += _activeClients.Count)
                 {
-                    byte[] matrixMessage = new byte[matrix[j].Length * sizeof(double)];
 
-                    Buffer.BlockCopy(matrix[j], 0, matrixMessage, 0, matrixMessage.Length);
-
-                    _socket.SendTo(matrixMessage, _activeClients[i]);
-
-                    if (GetIntResponce(_activeClients[i]) != 0)
-                        throw new Exception();
+                    SendArrayRequestSafe(matrix[j], _activeClients[i]);
 
                     vectorRequest[iterator] = vector[j];
                     iterator++;
                 }
 
-                byte[] vectorMessage = new byte[vectorRequest.Length * sizeof(double)];
-
-                Buffer.BlockCopy(vectorRequest, 0, vectorMessage, 0, vectorMessage.Length);
-                _socket.SendTo(vectorMessage, _activeClients[i]);
+                SendArrayRequestSafe(vectorRequest, _activeClients[i]);
 
             });
         }
 
         private void GetForwardPhase(int iteration, int matrixSize)
         {
-            
-
-            var rows = new double[_activeClients.Count][];
-            var vector = new double[_activeClients.Count];
-
             for (var i = 0; i < _activeClients.Count; i++)
             {
-                var compliteStatusMessage = new byte[sizeof(int)];
+                SendIntRequest(0, _activeClients[i]);
 
-                _socket.Receive(compliteStatusMessage);
-
-                if (BitConverter.ToInt32(compliteStatusMessage) == 1)
+                if (GetIntResponce(_activeClients[i]) == 0)
                 {
                     _waitingClients.Add(_activeClients[i]);
                     _activeClients.RemoveAt(i);
@@ -173,24 +175,22 @@ namespace Server.Solvers
 
                     continue;
                 }
-
-                var data = new byte[matrixSize * sizeof(double)];
-                var b = new byte[sizeof(double)];
-                var array = new double[matrixSize];
-
-                _socket.Receive(b);
-
-                _socket.Receive(data);
-
-                Buffer.BlockCopy(data, 0, array, 0, data.Length);
-
-                rows[i] = array;
-                vector[i] = BitConverter.ToDouble(b);
             }
 
             if (_activeClients.Count == 0)
             {
                 return;
+            }
+
+            var rows = new double[_activeClients.Count][];
+            var vector = new double[_activeClients.Count];
+
+            for (var i = 0; i < _activeClients.Count; i++)
+            {
+                SendIntRequest(0, _activeClients[i]);
+
+                rows[i] = GetArrayResponceSafe(matrixSize, _activeClients[i]);
+                vector[i] = GetDoubleResponce(_activeClients[i]);
             }
 
             var mainElementIndex = FindMainElement(rows, iteration);
@@ -199,45 +199,45 @@ namespace Server.Solvers
             {
                 if (i != mainElementIndex)
                 {
-                    _socket.SendTo(BitConverter.GetBytes(1), _activeClients[i]);
+                    SendIntRequest(1, _activeClients[i]);
 
-                    byte[] matrixMessage = new byte[rows[mainElementIndex].Length * sizeof(double)];
+                    SendArrayRequestSafe(rows[mainElementIndex], _activeClients[i]);
 
-                    Buffer.BlockCopy(rows[mainElementIndex], 0, matrixMessage, 0, matrixMessage.Length);
-
-                    _socket.SendTo(matrixMessage, _activeClients[i]);
-
-                    _socket.SendTo(BitConverter.GetBytes(vector[mainElementIndex]), _activeClients[i]);
+                    SendDoubleRequest(vector[mainElementIndex], _activeClients[i]);
 
                 }
                 else
                 {
-                    _socket.SendTo(BitConverter.GetBytes(0), _activeClients[i]);
+                    SendIntRequest(0, _activeClients[i]);
                 }
             }
         }
 
         private double[] GetBackPhase(double[][] matrix, double[] vector)
         {
-            var request = BitConverter.GetBytes(0);
-            var vectorList = new List<double>();
-            var counter = 0;
 
             for (var i = 0; i < _waitingClients.Count; i++)
             {
-                _socket.SendTo(request, _waitingClients[i]);
+                SendIntRequest(0, _waitingClients[i]);
+
                 var rowsCount = GetIntResponce(_waitingClients[i]);
+
+                var pathes = GetArrayResponceSafe(rowsCount, _waitingClients[i]);
 
                 for (var j = 0; j < rowsCount; j++)
                 {
-                    matrix[counter] = GetArrayResponce(matrix.Length);
-                    counter++;
+                    matrix[(int)pathes[j]] = GetArrayResponceSafe(matrix.Length, _waitingClients[i]);
                 }
 
-                vectorList.AddRange(GetArrayResponce(rowsCount));
+                var vectorList = GetArrayResponceSafe(rowsCount, _waitingClients[i]);
+
+                for (var j = 0; j < vectorList.Length; j++)
+                {
+                    vector[(int)pathes[j]] = vectorList[j];
+                }
             }
 
-            return ExecuteBackPhaseIteration(matrix, vectorList.ToArray());
+            return ExecuteBackPhaseIteration(matrix, vector);
         }
 
         private int CalculateRowsCountForClient(int matrixSize, int clientsCount, int clientIndex)
@@ -252,45 +252,88 @@ namespace Server.Solvers
             return rowsCount;
         }
 
-        private double[][] GetRows(int rowsCount, int rowSize)
+        public int GetIntResponce(EndPoint client)
+        {
+            var data = new byte[sizeof(int)];
+
+            _server.ReceiveFrom(data, ref client);
+
+            return BitConverter.ToInt32(data);
+        }
+
+        public double GetDoubleResponce(EndPoint client)
+        {
+            var data = new byte[sizeof(double)];
+
+            _server.ReceiveFrom(data, ref client);
+
+            return BitConverter.ToDouble(data);
+        }
+
+        public double[][] GetMatrixResponceSafe(int rowsCount, int rowSize, EndPoint client)
         {
             var rows = new double[rowsCount][];
 
             for (var i = 0; i < rowsCount; i++)
             {
-                rows[i] = GetArrayResponce(rowSize);
+                rows[i] = GetArrayResponceSafe(rowSize, client);
             }
 
             return rows;
         }
 
-        private double[] GetArrayResponce(int rowSize)
+        public double[] GetArrayResponceSafe(int arraySize, EndPoint client)
         {
-            byte[] data = new byte[rowSize * sizeof(double)];
-            _socket.Receive(data);
-            var array = new double[data.Length / sizeof(double)];
+            var data = new byte[sizeof(double) * arraySize];
+            var array = new double[arraySize];
+
+            while (_server.ReceiveFrom(data, ref client) != sizeof(double) * arraySize)
+            {
+                SendIntRequest(1, client);
+            }
+
+            SendIntRequest(0, client);
 
             Buffer.BlockCopy(data, 0, array, 0, data.Length);
 
             return array;
         }
 
-        private int GetIntResponce(EndPoint client)
+        public void SendArrayRequestSafe(double[] array, EndPoint client)
         {
-            byte[] data = new byte[sizeof(int)];
+            var data = new byte[array.Length * sizeof(double)];
 
-            _socket.ReceiveFrom(data, ref client);
+            Buffer.BlockCopy(array, 0, data, 0, data.Length);
 
-            return BitConverter.ToInt32(data);
+            do
+            {
+                _server.SendTo(data, client);
+
+            } while (GetIntResponce(client) != 0);
+        }
+
+        public void SendDoubleRequest(double number, EndPoint client)
+        {
+            _server.SendTo(BitConverter.GetBytes(number), client);
+        }
+
+        public void SendIntRequest(int number, EndPoint client)
+        {
+            _server.SendTo(BitConverter.GetBytes(number), client);
         }
 
         private void Close()
         {
-            if (_socket != null)
+            if (_server != null)
             {
-                _socket.Shutdown(SocketShutdown.Both);
-                _socket.Close();
+                _server.Shutdown(SocketShutdown.Both);
+                _server.Close();
             }
+        }
+
+        public string GetTimeLog()
+        {
+            return _timeLogger.GetLog();
         }
     }
 }

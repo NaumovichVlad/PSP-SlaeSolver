@@ -9,13 +9,13 @@ namespace Core.Methods.Parallel
     public class GaussMethodSolverParallel
     {
         protected void ExecuteForwardPhaseIteration(
-            double[][] matrix, double[] mainRow, double[] vector, double mainVector, int iteration, int rowsComplited = 0)
+            double[][] matrix, double[] mainRow, double[] vector, double mainVector, int iteration, int rowsComplited)
         {
             var n = vector.Length;
 
             for (var i = rowsComplited; i < n; i++)
             {
-                for (var j = iteration + 1; j < n; j++)
+                for (var j = iteration + 1; j < matrix[i].Length; j++)
                 {
                     matrix[i][j] = matrix[i][j] - mainRow[j] * (matrix[i][iteration] / mainRow[iteration]);
                 }
@@ -63,7 +63,7 @@ namespace Core.Methods.Parallel
 
         protected void SwapRows(double[][] matrix, double[] vector, int mainRowIndex, int iteration)
         {
-            for (var j = 0; j < vector.Length; j++)
+            for (var j = 0; j < matrix[iteration].Length; j++)
             {
                 var temp = matrix[iteration][j];
 

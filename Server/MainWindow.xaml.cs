@@ -101,7 +101,7 @@ namespace Server
 
         private void StartServerButton_Click(object sender, RoutedEventArgs e)
         {
-            _server = new ParallelSolver(int.Parse(ServerPortTextBox.Text), ServerIpTextBox.Text, new FileManagerTxt(), int.Parse(WaitClientsCountTextBox.Text));
+            _server = new ParallelSolver(int.Parse(ServerPortTextBox.Text), ServerIpTextBox.Text, new FileManagerTxt(), int.Parse(WaitClientsCountTextBox.Text), new TimeLogger());
             _server.Notify += UpdateConnections;
             _server.StartServer();
 
@@ -165,6 +165,8 @@ namespace Server
 
             var fileManager = new FileManagerTxt();
             fileManager.SaveResults(PathResParallelTextBox.Text, results);
+
+            ResultsLabelTab2.Content += "\n" + _server.GetTimeLog();
         }
     }
 }

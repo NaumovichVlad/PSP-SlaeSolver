@@ -12,96 +12,103 @@ namespace Client
 {
     public class GaussSlaeSolver : GaussMethodSolverParallel
     {
-        private readonly int _serverPort;
-        private readonly string _serverIp;
-        private readonly UdpClient _client;
+        private readonly UdpCilentSafe _client;
 
         public GaussSlaeSolver(int serverPort, string serverIp)
         {
-            _serverPort = serverPort;
-            _serverIp = serverIp;
-            _client = new UdpClient();
+            _client = new UdpCilentSafe(serverPort, serverIp);
         }
 
-        public bool Connect()
+        public void Process()
         {
-            try
+            if (_client.Connect())
             {
-                byte[] data = Encoding.Unicode.GetBytes("Ready");
-
-                _client.Connect(_serverIp, _serverPort);
-                _client.Send(data);
-
-                Process();
+                Console.WriteLine("Client connected");
             }
-            catch (Exception)
+            else
             {
-                return false;
+                Console.WriteLine("Connection error");
+                return;
             }
-
-            return true;
-        }
-
-        private void Process()
-        {
-            IPEndPoint? serverIp = null;
 
             try
             {
-                var rowsCount = GetIntResponce(serverIp);
-                var matrixSize = GetIntResponce(serverIp);
-                var rows = GetRows(serverIp, rowsCount);
-                var vector = GetArrayResponce(serverIp);
+                var rowsCount = _client.GetIntResponce();
+                var matrixSize = _client.GetIntResponce();
+                var rows = _client.GetMatrixResponceSafe(rowsCount, matrixSize);
+                var complItetations = new double[rowsCount];
+                var vector = _client.GetArrayResponceSafe(rowsCount);
                 var rowsComplited = 0;
 
                 Console.WriteLine($"Expected rows count: {rowsCount}");
                 Console.WriteLine($"Number of rows received: {rows.Length}");
                 Console.WriteLine($"Number of vector elements received: {vector.Length}");
 
+                Console.WriteLine("\nForward phase started");
+
                 for (var i = 0; i < matrixSize; i++)
                 {
-                    if (rowsComplited == rowsCount)
+                    _client.GetIntResponce();
+
+                    if (rowsComplited == rowsCount || i == matrixSize - 1)
                     {
-                        SendIntRequest(serverIp, 1);
+                        if (rowsComplited != rowsCount)
+                        {
+                            complItetations[rowsCount - 1] = matrixSize - 1;
+                        }
 
-                        GetIntResponce(serverIp);
+                        _client.SendIntRequest(0);
 
-                        SendIntRequest(serverIp, rowsCount);
+                        Console.WriteLine("\nWaiting for the start of sending results...");
+
+                        _client.GetIntResponce();
+
+                        _client.SendIntRequest(rowsCount);
+
+                        _client.SendArrayRequestSafe(complItetations);
 
                         for (var j = 0; j < rowsCount; j++)
                         {
-                            SendArrayRequest(serverIp, rows[j]);
+                            _client.SendArrayRequestSafe(rows[j]);
                         }
 
-                        SendArrayRequest(serverIp, vector);
+                        _client.SendArrayRequestSafe(vector);
 
-                        Console.WriteLine("Forward phase complited");
+                        Console.WriteLine("\nForward phase complited");
+
+                        _client.Close();
    
                         return;
                     }
                     else
                     {
-                        SendIntRequest(serverIp, 0);
+                        _client.SendIntRequest(1);
+                        _client.GetIntResponce();
                     }
 
                     var mainRowIndex = FindMainElement(rows, i, rowsComplited);
 
-                    SendDoubleRequest(serverIp, vector[mainRowIndex]);
+                    _client.SendArrayRequestSafe(rows[mainRowIndex]);
 
-                    SendArrayRequest(serverIp, rows[mainRowIndex]);
-                    
+                    _client.SendDoubleRequest(vector[mainRowIndex]);
 
-                    if (GetIntResponce(serverIp) == 1)
+
+                    if (_client.GetIntResponce() == 1)
                     {
-                        var mainRow = GetArrayResponce(serverIp);
-                        var mainVector = GetDoubleResponce(serverIp);
+                        var mainRow = _client.GetArrayResponceSafe(matrixSize);
+                        var mainVector = _client.GetDoubleResponce();
 
-                        ExecuteForwardPhaseIteration(rows, mainRow, vector, mainVector, i);
+                        ExecuteForwardPhaseIteration(rows, mainRow, vector, mainVector, i, rowsComplited);
                     }
                     else
                     {
                         SwapRows(rows, vector, mainRowIndex, rowsComplited);
-                        ExecuteForwardPhaseIteration(rows, rows[mainRowIndex], vector, vector[mainRowIndex], i, rowsComplited++);
+
+                        complItetations[rowsComplited] = i;
+
+                        rowsComplited++;
+
+                        ExecuteForwardPhaseIteration(rows, rows[rowsComplited - 1], vector, vector[rowsComplited - 1], i, rowsComplited);   
                     }
 
                 }
@@ -113,64 +120,6 @@ namespace Client
             }
         }
 
-        private int GetIntResponce(IPEndPoint? serverIp)
-        {
-            byte[] data = _client.Receive(ref serverIp);
-
-            return BitConverter.ToInt32(data);
-        }
-
-        private double GetDoubleResponce(IPEndPoint? serverIp)
-        {
-            byte[] data = _client.Receive(ref serverIp);
-
-            return BitConverter.ToDouble(data);
-        }
-
-        private double[][] GetRows(IPEndPoint? serverIp, int rowsCount)
-        {
-            var rows = new double[rowsCount][];
-
-            for (var i = 0; i < rowsCount; i++)
-            {
-                rows[i] = GetArrayResponce(serverIp);
-            }
-
-            return rows;
-        }
-
-        private double[] GetArrayResponce(IPEndPoint? serverIp)
-        {
-            byte[] data = _client.Receive(ref serverIp);
-            var array = new double[data.Length / sizeof(double)];
-            Buffer.BlockCopy(data, 0, array, 0, data.Length);
-
-            SendIntRequest(serverIp, 0);
-
-            return array;
-        }
-
-        private void SendArrayRequest(IPEndPoint serverIp, double[] array)
-        {
-            byte[] data = new byte[array.Length * sizeof(double)];
-
-            Buffer.BlockCopy(array, 0, data, 0, data.Length);
-
-            _client.Send(data);
-        }
-
-        private void SendDoubleRequest(IPEndPoint serverIp, double number)
-        {
-            var data = BitConverter.GetBytes(number);
-
-            _client.Send(data);
-        }
-
-        private void SendIntRequest(IPEndPoint serverIp, int number)
-        {
-            var data = BitConverter.GetBytes(number);
-
-            _client.Send(data);
-        }
+        
     }
 }
