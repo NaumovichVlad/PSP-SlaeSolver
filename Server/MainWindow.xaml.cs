@@ -123,7 +123,7 @@ namespace Server
             _server.Notify += UpdateConnections;
             _server.StartServer();
 
-            ResultsLabelTab2.Content += $"Server started in {ServerIpTextBox.Text}:{ServerPortTextBox.Text}";
+            ResultsLabelTab2.Content += $"Server started in {ServerIpTextBox.Text}:{ServerPortTextBox.Text}\n";
         }
 
 
@@ -185,7 +185,7 @@ namespace Server
             var fileManager = new FileManagerTxt();
             fileManager.SaveResults(PathResParallelTextBox.Text, results);
 
-            ResultsLabelTab2.Content += "\n" + _server.GetTimeLog();
+            ResultsLabelTab2.Content += "\n\n" + _server.GetTimeLog() + "\n";
 
             if (VerifyCheckBox.IsChecked == true)
             {
@@ -193,11 +193,11 @@ namespace Server
 
                 if (VerifyResults(expectedResults, results))
                 {
-                    ResultsLabelTab2.Content += "\nПроверка результатов успешно завершена";
+                    ResultsLabelTab2.Content += "\nПроверка результатов успешно завершена\n";
                 }
                 else
                 {
-                    ResultsLabelTab2.Content += "\nПроверка результатов не пройдена!";
+                    ResultsLabelTab2.Content += "\nПроверка результатов не пройдена!\n";
                 }
             }
 
@@ -222,7 +222,7 @@ namespace Server
             {
                 for (var i = 0; i < expected.Length; i++)
                 {
-                    if (Math.Abs(expected[i] - actual[i]) > Math.Pow(10, -5))
+                    if (Math.Abs(expected[i] - actual[i]) > Math.Pow(1, -5))
                     {
                         return false;
                     }

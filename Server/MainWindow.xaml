@@ -19,7 +19,7 @@
                     <Rectangle HorizontalAlignment="Left" Height="351" Margin="315,10,0,0" Stroke="#FFA295F7" StrokeThickness="3" VerticalAlignment="Top" Width="443"/>
                     <TextBox Name="PathBLinearTextBox" HorizontalAlignment="Left" Margin="23,50,0,0" TextWrapping="Wrap" Text="Пути к файлу с вектором" VerticalAlignment="Top" Width="195" Height="20"/>
                     <Button Name="LinearSolveButton" Content="Проводник" HorizontalAlignment="Left" Margin="223,50,0,0" VerticalAlignment="Top" Width="70" Background="#FFD2CCFD" BorderBrush="#FF8C7DF4" Click="PathBSearchLinearButton_Click"/>
-                    <Label Name="ResultsLabelTab1" HorizontalAlignment="Left" Margin="323,19,0,0" VerticalAlignment="Top" Height="315" Width="403"/>
+                    <Label Name="ResultsLabelTab1" HorizontalAlignment="Left" Margin="315,10,0,0" VerticalAlignment="Top" Height="315" Width="403"/>
                 </Grid>
             </TabItem>
             <TabItem Header="Распределённое решение" Background="#FFD2CCFD" BorderBrush="#FF8C7DF4">

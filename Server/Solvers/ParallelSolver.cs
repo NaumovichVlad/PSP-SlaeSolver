@@ -237,7 +237,6 @@ namespace Server.Solvers
                 }
             }
 
-            _activeClients = _waitingClients;
             _waitingClients = new List<IPEndPoint>();
 
             return ExecuteBackPhaseIteration(matrix, vector);
@@ -329,30 +328,9 @@ namespace Server.Solvers
         {
             if (_server != null)
             {
-                if (_activeClients != null)
-                {
-                    foreach (var client in _activeClients)
-                    {
-                        SendIntRequest(-1, client);
-                    }
-                }
-
-                if (_waitingClients != null)
-                {
-                    foreach (var client in _waitingClients)
-                    {
-                        SendIntRequest(-1, client);
-                    }
-                }
-
                 _server.Shutdown(SocketShutdown.Both);
                 _server.Close();
             }
-        }
-
-        ~ParallelSolver()
-        {
-            Close();
         }
 
         public string GetTimeLog()
