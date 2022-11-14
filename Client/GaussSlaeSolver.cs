@@ -30,7 +30,6 @@ namespace Client
                 Console.WriteLine("Connection error");
                 return;
             }
-
             try
             {
                 var rowsCount = _client.GetIntResponce();

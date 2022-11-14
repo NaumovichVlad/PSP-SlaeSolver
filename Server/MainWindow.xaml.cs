@@ -6,6 +6,8 @@ using Server.Loggers;
 using Server.Solvers;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -42,8 +44,16 @@ namespace Server
 
         private void InitializeFileDialogs()
         {
-            _ofDialog.Filter = "Matrix A(*.A)|*.A|Vector B(*.B)|*.B";
-            _sfDialog.Filter = "Result(*.res)|*.res";
+            PathAParallelTextBox.Text = "E:\\Study\\Current\\ПСП\\Курсовая работа\\TestData\\test2.A";
+            PathBParallelTextBox.Text = "E:\\Study\\Current\\ПСП\\Курсовая работа\\TestData\\test2.B";
+            PathResParallelTextBox.Text = "E:\\Study\\Current\\ПСП\\Курсовая работа\\TestData\\test.des";
+
+            PathALinearTextBox.Text = "E:\\Study\\Current\\ПСП\\Курсовая работа\\TestData\\test2.A";
+            PathBLinearTextBox.Text = "E:\\Study\\Current\\ПСП\\Курсовая работа\\TestData\\test2.B";
+            PathResLinearTextBox.Text = "E:\\Study\\Current\\ПСП\\Курсовая работа\\TestData\\test.des";
+
+            _ofDialog.Filter = "Matrix A(*.A)|*.A|Vector B(*.B)|*.B|Results(*.des)|*.des";
+            _sfDialog.Filter = "Result(*.des)|*.des";
         }
 
         private void InitializeLinearMethodsCombobox()
@@ -79,6 +89,8 @@ namespace Server
             calculater.Solve(PathALinearTextBox.Text, PathBLinearTextBox.Text, PathResLinearTextBox.Text);
 
             ResultsLabelTab1.Content = calculater.GetTimeLog();
+
+            OpenResults(PathResLinearTextBox.Text);
         }
 
         private void PathASearchParallelButton_Click(object sender, RoutedEventArgs e)
@@ -91,6 +103,12 @@ namespace Server
         {
             _ofDialog.ShowDialog();
             PathBParallelTextBox.Text = _ofDialog.FileName;
+        }
+
+        private void PathVerSearchParallelButton_Click(object sender, RoutedEventArgs e)
+        {
+            _ofDialog.ShowDialog();
+            PathVerParallelTextBox.Text = _ofDialog.FileName;
         }
 
         private void PathResSearchParallelButton_Click(object sender, RoutedEventArgs e)
@@ -107,6 +125,7 @@ namespace Server
 
             ResultsLabelTab2.Content += $"Server started in {ServerIpTextBox.Text}:{ServerPortTextBox.Text}";
         }
+
 
         private void UpdateConnections(int count, string address)
         {
@@ -167,6 +186,68 @@ namespace Server
             fileManager.SaveResults(PathResParallelTextBox.Text, results);
 
             ResultsLabelTab2.Content += "\n" + _server.GetTimeLog();
+
+            if (VerifyCheckBox.IsChecked == true)
+            {
+                var expectedResults = fileManager.ReadVector(PathVerParallelTextBox.Text);
+
+                if (VerifyResults(expectedResults, results))
+                {
+                    ResultsLabelTab2.Content += "\nПроверка результатов успешно завершена";
+                }
+                else
+                {
+                    ResultsLabelTab2.Content += "\nПроверка результатов не пройдена!";
+                }
+            }
+
+            OpenResults(PathResParallelTextBox.Text);
+
+        }
+
+        private void OpenResults(string resultsPath)
+        {
+            var p = new Process();
+
+            p.StartInfo = new ProcessStartInfo(resultsPath)
+            {
+                UseShellExecute = true
+            };
+
+            p.Start();
+        }
+        private bool VerifyResults(double[] expected, double[] actual)
+        {
+            if (expected.Length == actual.Length)
+            {
+                for (var i = 0; i < expected.Length; i++)
+                {
+                    if (Math.Abs(expected[i] - actual[i]) > Math.Pow(10, -5))
+                    {
+                        return false;
+                    }
+                }
+            }
+            else
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        private void VerifyCheckBox_Checked(object sender, RoutedEventArgs e)
+        {
+            if (VerifyCheckBox.IsChecked == true)
+            {
+                PathVerParallelTextBox.IsReadOnly = false;
+                PathVerSearchParallelButton.IsEnabled = true;
+            }
+            else
+            {
+                PathVerParallelTextBox.IsReadOnly = true;
+                PathVerSearchParallelButton.IsEnabled = false;
+            }
         }
     }
 }

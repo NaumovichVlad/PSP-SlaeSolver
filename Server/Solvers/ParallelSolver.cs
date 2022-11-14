@@ -19,8 +19,8 @@ namespace Server.Solvers
         private readonly int _port;
         private readonly IPAddress _ipAddress;
         private readonly Socket _server;
-        private readonly List<IPEndPoint> _activeClients;
-        private readonly List<IPEndPoint> _waitingClients;
+        private List<IPEndPoint> _activeClients;
+        private List<IPEndPoint> _waitingClients;
         private readonly int _waitClientsNum;
 
         private readonly IFileManager _fileManager;
@@ -237,6 +237,9 @@ namespace Server.Solvers
                 }
             }
 
+            _activeClients = _waitingClients;
+            _waitingClients = new List<IPEndPoint>();
+
             return ExecuteBackPhaseIteration(matrix, vector);
         }
 
@@ -326,9 +329,30 @@ namespace Server.Solvers
         {
             if (_server != null)
             {
+                if (_activeClients != null)
+                {
+                    foreach (var client in _activeClients)
+                    {
+                        SendIntRequest(-1, client);
+                    }
+                }
+
+                if (_waitingClients != null)
+                {
+                    foreach (var client in _waitingClients)
+                    {
+                        SendIntRequest(-1, client);
+                    }
+                }
+
                 _server.Shutdown(SocketShutdown.Both);
                 _server.Close();
             }
+        }
+
+        ~ParallelSolver()
+        {
+            Close();
         }
 
         public string GetTimeLog()

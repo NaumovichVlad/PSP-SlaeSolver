@@ -25,10 +25,8 @@ namespace Client
         {
             try
             {
-                //Сделать получше, а то хуета
                 var random = new Random();
                 var localIp = new IPEndPoint(IPAddress.Parse("127.0.0." + random.Next(1, 254)), random.Next(5000, 6000));
-                //
 
                 _client.Bind(localIp);
                 _client.Connect(_serverIp, _serverPort);
