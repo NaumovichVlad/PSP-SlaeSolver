@@ -22,6 +22,7 @@ namespace Server.Solvers
         private List<IPEndPoint> _activeClients;
         private List<IPEndPoint> _waitingClients;
         private readonly int _waitClientsNum;
+        private const int _packageSize = 512;
 
         private readonly IFileManager _fileManager;
         private readonly ITimeLogger _timeLogger;
@@ -37,6 +38,9 @@ namespace Server.Solvers
             _port = port;
             _ipAddress = IPAddress.Parse(ipAddress);
             _server = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            _server.ReceiveBufferSize = 100000000;
+            _server.SendBufferSize = 100000000;
+            _server.Ttl = 1;
             _activeClients = new List<IPEndPoint>();
             _fileManager = fileManager;
             _listeningTask = new Thread(Listen);
@@ -289,12 +293,29 @@ namespace Server.Solvers
             var data = new byte[sizeof(double) * arraySize];
             var array = new double[arraySize];
 
-            while (_server.ReceiveFrom(data, ref client) != sizeof(double) * arraySize)
-            {
-                SendIntRequest(1, client);
-            }
+            var packageCount = GetIntResponce(client);
+            var packagesSize = 0;
 
-            SendIntRequest(0, client);
+            for (var i = 0; i < packageCount; i++)
+            {
+                var packageSize = GetIntResponce(client);
+
+                while (true)
+                {
+                    if (_server.Poll(10000, SelectMode.SelectRead))
+                    {
+                        _server.ReceiveFrom(data, packagesSize, packageSize, SocketFlags.None, ref client);
+                        SendIntRequest(0, client);
+                        break;
+                    }
+                    else
+                    {
+                        SendIntRequest(1, client);
+                    }
+                }
+
+                packagesSize += packageSize;
+            }
 
             Buffer.BlockCopy(data, 0, array, 0, data.Length);
 
@@ -307,11 +328,29 @@ namespace Server.Solvers
 
             Buffer.BlockCopy(array, 0, data, 0, data.Length);
 
-            do
-            {
-                _server.SendTo(data, client);
+            var packageCount = CalculatePackageCount(array.Length * sizeof(double));
 
-            } while (GetIntResponce(client) != 0);
+            SendIntRequest(packageCount, client);
+
+            for (var i = 0; i < packageCount; i++)
+            {
+                var packageSize = _packageSize;
+
+                if (i == packageCount - 1)
+                {
+                    packageSize = array.Length * sizeof(double) - _packageSize * i;
+                }
+
+                SendIntRequest(packageSize, client);
+
+                do
+                {
+                    if (_server.SendTo(data, _packageSize * i, packageSize, SocketFlags.None, client) != packageSize)
+                    {
+                        Thread.Sleep(10000);
+                    }
+                } while (GetIntResponce(client) != 0);
+            }
         }
 
         public void SendDoubleRequest(double number, EndPoint client)
@@ -336,6 +375,18 @@ namespace Server.Solvers
         public string GetTimeLog()
         {
             return _timeLogger.GetLog();
+        }
+
+        private int CalculatePackageCount(int dataSize)
+        {
+            var packageCount = dataSize / _packageSize;
+
+            if (dataSize % _packageSize != 0)
+            {
+                packageCount++;
+            }
+
+            return packageCount;
         }
     }
 }

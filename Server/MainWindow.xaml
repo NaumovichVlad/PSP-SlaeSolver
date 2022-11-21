@@ -37,7 +37,7 @@
                     <TextBox Name="ServerPortTextBox" Text="8080" HorizontalAlignment="Left" Margin="137,20,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="41"/>
                     <Label Content="Кол-во подключений:" HorizontalAlignment="Left" Margin="86,69,0,0" VerticalAlignment="Top"/>
                     <TextBox Name="ClientsCountTextBox" IsReadOnly="True" HorizontalAlignment="Left" Margin="223,73,0,0" TextWrapping="Wrap" Text="0" VerticalAlignment="Top" Width="70"/>
-                    <TextBox Name="ServerIpTextBox" Text="127.0.0.1" HorizontalAlignment="Left" Margin="23,20,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="109" Height="18"/>
+                    <TextBox Name="ServerIpTextBox" Text="178.121.16.233" HorizontalAlignment="Left" Margin="23,20,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="109" Height="18"/>
                     <Label Content="Кол-во ожидаемых подключений:" HorizontalAlignment="Left" Margin="18,43,0,0" VerticalAlignment="Top"/>
                     <TextBox Name="WaitClientsCountTextBox" HorizontalAlignment="Left" Margin="223,47,0,0" TextWrapping="Wrap" Text="1" VerticalAlignment="Top" Width="70"/>
                     <CheckBox Name="VerifyCheckBox" Content="Проверять результаты вычисления" HorizontalAlignment="Left" Margin="24,213,0,0" VerticalAlignment="Top" Checked="VerifyCheckBox_Checked"/>

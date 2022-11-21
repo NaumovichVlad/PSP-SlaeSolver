@@ -10,6 +10,7 @@ namespace Client
 {
     public class UdpCilentSafe
     {
+        private const int _packageSize = 512;
         private readonly int _serverPort;
         private readonly string _serverIp;
         private readonly Socket _client;
@@ -19,16 +20,14 @@ namespace Client
             _serverPort = serverPort;
             _serverIp = serverIp;
             _client = new Socket(SocketType.Dgram, ProtocolType.Udp);
+            _client.ReceiveBufferSize = 10000000;
+            _client.SendBufferSize = 10000000;
         }
 
         public bool Connect()
         {
             try
             {
-                var random = new Random();
-                var localIp = new IPEndPoint(IPAddress.Parse("127.0.0." + random.Next(1, 254)), random.Next(5000, 6000));
-
-                _client.Bind(localIp);
                 _client.Connect(_serverIp, _serverPort);
                 _client.Send(BitConverter.GetBytes(0));
             }
@@ -49,7 +48,7 @@ namespace Client
         {
             var data = new byte[sizeof(int)];
             
-            _client.Receive(data);
+            _client.Receive(data, sizeof(int), SocketFlags.None);
 
             return BitConverter.ToInt32(data);
         }
@@ -57,7 +56,7 @@ namespace Client
         public double GetDoubleResponce()
         {
             var data = new byte[sizeof(double)];
-
+            
             _client.Receive(data);
 
             return BitConverter.ToDouble(data);
@@ -80,12 +79,31 @@ namespace Client
             var data = new byte[sizeof(double) * arraySize];
             var array = new double[arraySize];
 
-            while(_client.Receive(data) != sizeof(double) * arraySize)
+            var packageCount = GetIntResponce();
+            var packagesSize = 0;
+
+            for (var i = 0; i < packageCount; i++)
             {
-                SendIntRequest(1);
+                var packageSize = GetIntResponce();
+
+                do
+                {
+                    if (_client.Poll(50000, SelectMode.SelectRead))
+                    {
+                        _client.Receive(data, packagesSize, packageSize, SocketFlags.None);
+
+                        SendIntRequest(0);
+                        break;
+                    }
+                    else
+                    {
+                        SendIntRequest(1);
+                    }
+                } while (true);
+
+                packagesSize += packageSize;
             }
 
-            SendIntRequest(0);
             
             Buffer.BlockCopy(data, 0, array, 0, data.Length);
 
@@ -98,11 +116,29 @@ namespace Client
 
             Buffer.BlockCopy(array, 0, data, 0, data.Length);
 
-            do
-            {
-                _client.Send(data);
+            var packageCount = CalculatePackageCount(array.Length * sizeof(double));
 
-            } while (GetIntResponce() != 0);
+            SendIntRequest(packageCount);
+
+            for (var i = 0; i < packageCount; i++)
+            {
+                var packageSize = _packageSize;
+
+                if (i == packageCount - 1)
+                {
+                    packageSize = array.Length * sizeof(double) - _packageSize * i ;
+                }
+
+                SendIntRequest(packageSize);
+
+                do
+                {
+                    if (_client.Send(data, _packageSize * i, packageSize, SocketFlags.None) != packageSize)
+                    {
+                        Thread.Sleep(10000);
+                    }
+                } while (GetIntResponce() != 0);
+            }
         }
 
 
@@ -114,6 +150,18 @@ namespace Client
         public void SendIntRequest(int number)
         {
             _client.Send(BitConverter.GetBytes(number));
+        }
+
+        private int CalculatePackageCount(int dataSize)
+        {
+            var packageCount = dataSize / _packageSize;
+
+            if (dataSize % _packageSize != 0)
+            {
+                packageCount++;
+            }
+
+            return packageCount;
         }
     }
 }

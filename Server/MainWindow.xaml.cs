@@ -44,12 +44,12 @@ namespace Server
 
         private void InitializeFileDialogs()
         {
-            PathAParallelTextBox.Text = "E:\\Study\\Current\\ПСП\\Курсовая работа\\TestData\\test2.A";
-            PathBParallelTextBox.Text = "E:\\Study\\Current\\ПСП\\Курсовая работа\\TestData\\test2.B";
+            PathAParallelTextBox.Text = "E:\\Study\\Current\\ПСП\\Курсовая работа\\TestData\\test1.A";
+            PathBParallelTextBox.Text = "E:\\Study\\Current\\ПСП\\Курсовая работа\\TestData\\test1.B";
             PathResParallelTextBox.Text = "E:\\Study\\Current\\ПСП\\Курсовая работа\\TestData\\test.des";
 
-            PathALinearTextBox.Text = "E:\\Study\\Current\\ПСП\\Курсовая работа\\TestData\\test2.A";
-            PathBLinearTextBox.Text = "E:\\Study\\Current\\ПСП\\Курсовая работа\\TestData\\test2.B";
+            PathALinearTextBox.Text = "E:\\Study\\Current\\ПСП\\Курсовая работа\\TestData\\test1.A";
+            PathBLinearTextBox.Text = "E:\\Study\\Current\\ПСП\\Курсовая работа\\TestData\\test1.B";
             PathResLinearTextBox.Text = "E:\\Study\\Current\\ПСП\\Курсовая работа\\TestData\\test.des";
 
             _ofDialog.Filter = "Matrix A(*.A)|*.A|Vector B(*.B)|*.B|Results(*.des)|*.des";

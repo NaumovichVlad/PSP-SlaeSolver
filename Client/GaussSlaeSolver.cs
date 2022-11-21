@@ -33,14 +33,20 @@ namespace Client
             try
             {
                 var rowsCount = _client.GetIntResponce();
+
+                Console.WriteLine($"Expected rows count: {rowsCount}");
+
                 var matrixSize = _client.GetIntResponce();
                 var rows = _client.GetMatrixResponceSafe(rowsCount, matrixSize);
+
+                Console.WriteLine($"Number of rows received: {rows.Length}");
+
                 var complItetations = new double[rowsCount];
                 var vector = _client.GetArrayResponceSafe(rowsCount);
                 var rowsComplited = 0;
 
-                Console.WriteLine($"Expected rows count: {rowsCount}");
-                Console.WriteLine($"Number of rows received: {rows.Length}");
+                
+                
                 Console.WriteLine($"Number of vector elements received: {vector.Length}");
 
                 Console.WriteLine("\nForward phase started");
