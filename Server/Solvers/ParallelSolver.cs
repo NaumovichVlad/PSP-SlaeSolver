@@ -1,5 +1,6 @@
 ﻿using Core.Methods.Linear;
 using Core.Methods.Parallel;
+using Core.Sockets.Udp;
 using DataAccess.Managers;
 using Server.Loggers;
 using System;
@@ -15,14 +16,11 @@ using System.Threading.Tasks;
 namespace Server.Solvers
 {
     public class ParallelSolver : GaussMethodSolverParallel
-    {
-        private readonly int _port;
-        private readonly IPAddress _ipAddress;
-        private readonly Socket _server;
+    { 
+        private readonly SafeUdpSocket _server;
         private List<IPEndPoint> _activeClients;
         private List<IPEndPoint> _waitingClients;
         private readonly int _waitClientsNum;
-        private const int _packageSize = 512;
 
         private readonly IFileManager _fileManager;
         private readonly ITimeLogger _timeLogger;
@@ -33,14 +31,9 @@ namespace Server.Solvers
 
         public int ClientNum { get; private set; }
 
-        public ParallelSolver(int port, string ipAddress, IFileManager fileManager, int waitClientsNum, ITimeLogger timeLogger)
+        public ParallelSolver(IFileManager fileManager, int waitClientsNum, ITimeLogger timeLogger)
         {
-            _port = port;
-            _ipAddress = IPAddress.Parse(ipAddress);
-            _server = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-            _server.ReceiveBufferSize = 100000000;
-            _server.SendBufferSize = 100000000;
-            _server.Ttl = 1;
+            _server = new SafeUdpSocket();
             _activeClients = new List<IPEndPoint>();
             _fileManager = fileManager;
             _listeningTask = new Thread(Listen);
@@ -49,8 +42,9 @@ namespace Server.Solvers
             _timeLogger = timeLogger;
         }
 
-        public void StartServer()
+        public void StartServer(int port, string ipAddress)
         {
+            _server.Create(ipAddress, port);
             _listeningTask.Start();
         }
 
@@ -58,49 +52,40 @@ namespace Server.Solvers
         {
             try
             {
-                var localIp = new IPEndPoint(_ipAddress, _port);
-
-                _server.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.ReuseAddress, true);
-                _server.Bind(localIp);
-
                 while (_activeClients.Count < _waitClientsNum)
                 {
-                    var builder = new StringBuilder();
-                    var bytes = 0;
+                    Statuses status;
                     var data = new byte[256];
                     EndPoint remoteIp = new IPEndPoint(IPAddress.Any, 0);
 
-                    do
+                    if (_server.TryAccept(ref remoteIp))
                     {
-                        bytes = _server.ReceiveFrom(data, ref remoteIp);
-                        builder.Append(Encoding.Unicode.GetString(data, 0, bytes));
-                    }
-                    while (_server.Available > 0);
+                        IPEndPoint remoteFullIp = remoteIp as IPEndPoint;
 
-                    IPEndPoint remoteFullIp = remoteIp as IPEndPoint;
+                        bool addClient = true;
 
-                    bool addClient = true;
-
-                    for (int i = 0; i < _activeClients.Count; i++)
-                    {
-                        if (_activeClients[i].Address.ToString() == remoteFullIp.Address.ToString())
+                        for (int i = 0; i < _activeClients.Count; i++)
                         {
-                            addClient = false;
-                            break;
+                            if (_activeClients[i].Address.ToString() == remoteFullIp.Address.ToString())
+                            {
+                                addClient = false;
+                                break;
+                            }
                         }
-                    }
 
-                    if (addClient == true)
-                    {
-                        _activeClients.Add(remoteFullIp);
-                        Notify.Invoke(_activeClients.Count, remoteFullIp.ToString());
+                        if (addClient == true)
+                        {
+                            _activeClients.Add(remoteFullIp);
+                            _server.SendStatus(Statuses.OK, remoteFullIp);
+                            Notify.Invoke(_activeClients.Count, remoteFullIp.ToString());
+                        }
                     }
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine(ex.Message);
-                Close();
+                _server.Close();
             }
         }
 
@@ -146,20 +131,20 @@ namespace Server.Solvers
                 var vectorRequest = new double[rowsCount];
                 var iterator = 0;
 
-                SendIntRequest(rowsCount, _activeClients[i]);
-                SendIntRequest(vector.Length, _activeClients[i]);
+                _server.SendInt(rowsCount, _activeClients[i]);
+                _server.SendInt(vector.Length, _activeClients[i]);
 
 
                 for (var j = i; j < vector.Length; j += _activeClients.Count)
                 {
 
-                    SendArrayRequestSafe(matrix[j], _activeClients[i]);
+                    _server.SendArray(matrix[j], _activeClients[i]);
 
                     vectorRequest[iterator] = vector[j];
                     iterator++;
                 }
 
-                SendArrayRequestSafe(vectorRequest, _activeClients[i]);
+                _server.SendArray(vectorRequest, _activeClients[i]);
 
             });
         }
@@ -168,9 +153,9 @@ namespace Server.Solvers
         {
             for (var i = 0; i < _activeClients.Count; i++)
             {
-                SendIntRequest(0, _activeClients[i]);
+                _server.SendStatus(Statuses.OK, _activeClients[i]);
 
-                if (GetIntResponce(_activeClients[i]) == 0)
+                if (_server.ReceiveStatus(_activeClients[i]) == Statuses.OK)
                 {
                     _waitingClients.Add(_activeClients[i]);
                     _activeClients.RemoveAt(i);
@@ -191,10 +176,10 @@ namespace Server.Solvers
 
             for (var i = 0; i < _activeClients.Count; i++)
             {
-                SendIntRequest(0, _activeClients[i]);
+                _server.SendStatus(Statuses.OK, _activeClients[i]);
 
-                rows[i] = GetArrayResponceSafe(matrixSize, _activeClients[i]);
-                vector[i] = GetDoubleResponce(_activeClients[i]);
+                rows[i] = _server.ReceiveArray(matrixSize, _activeClients[i]);
+                vector[i] = _server.ReceiveDouble(_activeClients[i]);
             }
 
             var mainElementIndex = FindMainElement(rows, iteration);
@@ -203,16 +188,16 @@ namespace Server.Solvers
             {
                 if (i != mainElementIndex)
                 {
-                    SendIntRequest(1, _activeClients[i]);
+                    _server.SendStatus(Statuses.NO, _activeClients[i]);
 
-                    SendArrayRequestSafe(rows[mainElementIndex], _activeClients[i]);
+                    _server.SendArray(rows[mainElementIndex], _activeClients[i]);
 
-                    SendDoubleRequest(vector[mainElementIndex], _activeClients[i]);
+                    _server.SendDouble(vector[mainElementIndex], _activeClients[i]);
 
                 }
                 else
                 {
-                    SendIntRequest(0, _activeClients[i]);
+                    _server.SendStatus(Statuses.OK, _activeClients[i]);
                 }
             }
         }
@@ -222,18 +207,18 @@ namespace Server.Solvers
 
             for (var i = 0; i < _waitingClients.Count; i++)
             {
-                SendIntRequest(0, _waitingClients[i]);
+                _server.SendStatus(Statuses.OK, _waitingClients[i]);
 
-                var rowsCount = GetIntResponce(_waitingClients[i]);
+                var rowsCount = _server.ReceiveInt(_waitingClients[i]);
 
-                var pathes = GetArrayResponceSafe(rowsCount, _waitingClients[i]);
+                var pathes = _server.ReceiveArray(rowsCount, _waitingClients[i]);
 
                 for (var j = 0; j < rowsCount; j++)
                 {
-                    matrix[(int)pathes[j]] = GetArrayResponceSafe(matrix.Length, _waitingClients[i]);
+                    matrix[(int)pathes[j]] = _server.ReceiveArray(matrix.Length, _waitingClients[i]);
                 }
 
-                var vectorList = GetArrayResponceSafe(rowsCount, _waitingClients[i]);
+                var vectorList = _server.ReceiveArray(rowsCount, _waitingClients[i]);
 
                 for (var j = 0; j < vectorList.Length; j++)
                 {
@@ -258,135 +243,9 @@ namespace Server.Solvers
             return rowsCount;
         }
 
-        public int GetIntResponce(EndPoint client)
-        {
-            var data = new byte[sizeof(int)];
-
-            _server.ReceiveFrom(data, ref client);
-
-            return BitConverter.ToInt32(data);
-        }
-
-        public double GetDoubleResponce(EndPoint client)
-        {
-            var data = new byte[sizeof(double)];
-
-            _server.ReceiveFrom(data, ref client);
-
-            return BitConverter.ToDouble(data);
-        }
-
-        public double[][] GetMatrixResponceSafe(int rowsCount, int rowSize, EndPoint client)
-        {
-            var rows = new double[rowsCount][];
-
-            for (var i = 0; i < rowsCount; i++)
-            {
-                rows[i] = GetArrayResponceSafe(rowSize, client);
-            }
-
-            return rows;
-        }
-
-        public double[] GetArrayResponceSafe(int arraySize, EndPoint client)
-        {
-            var data = new byte[sizeof(double) * arraySize];
-            var array = new double[arraySize];
-
-            var packageCount = GetIntResponce(client);
-            var packagesSize = 0;
-
-            for (var i = 0; i < packageCount; i++)
-            {
-                var packageSize = GetIntResponce(client);
-
-                while (true)
-                {
-                    if (_server.Poll(10000, SelectMode.SelectRead))
-                    {
-                        _server.ReceiveFrom(data, packagesSize, packageSize, SocketFlags.None, ref client);
-                        SendIntRequest(0, client);
-                        break;
-                    }
-                    else
-                    {
-                        SendIntRequest(1, client);
-                    }
-                }
-
-                packagesSize += packageSize;
-            }
-
-            Buffer.BlockCopy(data, 0, array, 0, data.Length);
-
-            return array;
-        }
-
-        public void SendArrayRequestSafe(double[] array, EndPoint client)
-        {
-            var data = new byte[array.Length * sizeof(double)];
-
-            Buffer.BlockCopy(array, 0, data, 0, data.Length);
-
-            var packageCount = CalculatePackageCount(array.Length * sizeof(double));
-
-            SendIntRequest(packageCount, client);
-
-            for (var i = 0; i < packageCount; i++)
-            {
-                var packageSize = _packageSize;
-
-                if (i == packageCount - 1)
-                {
-                    packageSize = array.Length * sizeof(double) - _packageSize * i;
-                }
-
-                SendIntRequest(packageSize, client);
-
-                do
-                {
-                    if (_server.SendTo(data, _packageSize * i, packageSize, SocketFlags.None, client) != packageSize)
-                    {
-                        Thread.Sleep(10000);
-                    }
-                } while (GetIntResponce(client) != 0);
-            }
-        }
-
-        public void SendDoubleRequest(double number, EndPoint client)
-        {
-            _server.SendTo(BitConverter.GetBytes(number), client);
-        }
-
-        public void SendIntRequest(int number, EndPoint client)
-        {
-            _server.SendTo(BitConverter.GetBytes(number), client);
-        }
-
-        private void Close()
-        {
-            if (_server != null)
-            {
-                _server.Shutdown(SocketShutdown.Both);
-                _server.Close();
-            }
-        }
-
         public string GetTimeLog()
         {
             return _timeLogger.GetLog();
-        }
-
-        private int CalculatePackageCount(int dataSize)
-        {
-            var packageCount = dataSize / _packageSize;
-
-            if (dataSize % _packageSize != 0)
-            {
-                packageCount++;
-            }
-
-            return packageCount;
         }
     }
 }
