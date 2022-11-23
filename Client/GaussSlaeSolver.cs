@@ -14,47 +14,43 @@ namespace Client
     public class GaussSlaeSolver : GaussMethodSolverParallel
     {
         private readonly SafeUdpSocket _client;
-        private readonly EndPoint _serverEp;
+        private readonly IPEndPoint _serverIEP;
 
         public GaussSlaeSolver(int serverPort, string serverIp)
         {
             _client = new SafeUdpSocket();
-            _serverEp = new IPEndPoint(IPAddress.Parse(serverIp), serverPort);
+            _serverIEP = new IPEndPoint(IPAddress.Parse(serverIp), serverPort);
         }
 
         public bool Connect()
         {
             try
             {
-                _client.SendStatus(Statuses.OK, _serverEp);
-                if (_client.ReceiveStatus(_serverEp) == Statuses.OK)
-                {
-                    return true;
-                }
+                _client.Send(0, _serverIEP, -1);
+                return true;
             }
             catch (Exception ex)
             {
                 Console.WriteLine(ex.Message);
+                return false;
             }
-
-            return false;
         }
 
         public void Process()
         {
             try
             {
-                var rowsCount = _client.ReceiveInt(_serverEp);
+                var rowsCount = (int) _client.Receive(_serverIEP).Data[0];
 
                 Console.WriteLine($"Expected rows count: {rowsCount}");
 
-                var matrixSize = _client.ReceiveInt(_serverEp);
-                var rows = _client.ReceiveMatrix(rowsCount, matrixSize, _serverEp);
+                var matrixSize = (int) _client.Receive(_serverIEP).Data[0];
+                var rows = _client.ReceiveMatrix(rowsCount, _serverIEP);
 
                 Console.WriteLine($"Number of rows received: {rows.Length}");
 
                 var complItetations = new double[rowsCount];
-                var vector = _client.ReceiveArray(rowsCount, _serverEp);
+                var vector = _client.ReceiveArray(_serverIEP);
                 var rowsComplited = 0;
 
                 
@@ -65,8 +61,6 @@ namespace Client
 
                 for (var i = 0; i < matrixSize; i++)
                 {
-                    _client.ReceiveStatus(_serverEp);
-
                     if (rowsComplited == rowsCount || i == matrixSize - 1)
                     {
                         if (rowsComplited != rowsCount)
@@ -74,22 +68,22 @@ namespace Client
                             complItetations[rowsCount - 1] = matrixSize - 1;
                         }
 
-                        _client.SendStatus(Statuses.OK, _serverEp);
+                        _client.Send(0, _serverIEP);
 
                         Console.WriteLine("\nWaiting for the start of sending results...");
 
-                        _client.ReceiveStatus(_serverEp);
+                        _client.Receive(_serverIEP);
 
-                        _client.SendInt(rowsCount, _serverEp);
+                        Console.WriteLine("\nSending started");
 
-                        _client.SendArray(complItetations, _serverEp);
+                        _client.Send(complItetations, _serverIEP);
 
                         for (var j = 0; j < rowsCount; j++)
                         {
-                            _client.SendArray(rows[j], _serverEp);
+                            _client.Send(rows[j], _serverIEP);
                         }
 
-                        _client.SendArray(vector, _serverEp);
+                        _client.Send(vector, _serverIEP);
 
                         Console.WriteLine("\nForward phase complited");
 
@@ -99,21 +93,19 @@ namespace Client
                     }
                     else
                     {
-                        _client.SendStatus(Statuses.NO, _serverEp);
-                        _client.ReceiveStatus(_serverEp);
+                        _client.Send(1, _serverIEP);
                     }
 
                     var mainRowIndex = FindMainElement(rows, i, rowsComplited);
 
-                    _client.SendArray(rows[mainRowIndex], _serverEp);
+                    _client.Send(vector[mainRowIndex], _serverIEP);
 
-                    _client.SendDouble(vector[mainRowIndex], _serverEp);
+                    _client.Send(rows[mainRowIndex], _serverIEP);
 
-
-                    if (_client.ReceiveStatus(_serverEp) == Statuses.NO)
+                    if (_client.Receive(_serverIEP).Data[0] == 1)
                     {
-                        var mainRow = _client.ReceiveArray(matrixSize, _serverEp);
-                        var mainVector = _client.ReceiveDouble(_serverEp);
+                        var mainRow = _client.ReceiveArray(_serverIEP);
+                        var mainVector = _client.Receive(_serverIEP).Data[0];
 
                         ExecuteForwardPhaseIteration(rows, mainRow, vector, mainVector, i, rowsComplited);
                     }

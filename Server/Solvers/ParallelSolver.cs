@@ -31,9 +31,9 @@ namespace Server.Solvers
 
         public int ClientNum { get; private set; }
 
-        public ParallelSolver(IFileManager fileManager, int waitClientsNum, ITimeLogger timeLogger)
+        public ParallelSolver(int port, string ipAddress, IFileManager fileManager, int waitClientsNum, ITimeLogger timeLogger)
         {
-            _server = new SafeUdpSocket();
+            _server = new SafeUdpSocket(ipAddress, port);
             _activeClients = new List<IPEndPoint>();
             _fileManager = fileManager;
             _listeningTask = new Thread(Listen);
@@ -42,9 +42,8 @@ namespace Server.Solvers
             _timeLogger = timeLogger;
         }
 
-        public void StartServer(int port, string ipAddress)
+        public void StartServer()
         {
-            _server.Create(ipAddress, port);
             _listeningTask.Start();
         }
 
@@ -54,19 +53,16 @@ namespace Server.Solvers
             {
                 while (_activeClients.Count < _waitClientsNum)
                 {
-                    Statuses status;
                     var data = new byte[256];
-                    EndPoint remoteIp = new IPEndPoint(IPAddress.Any, 0);
+                   var remoteIp = new IPEndPoint(IPAddress.Any, 0);
 
                     if (_server.TryAccept(ref remoteIp))
                     {
-                        IPEndPoint remoteFullIp = remoteIp as IPEndPoint;
-
                         bool addClient = true;
 
                         for (int i = 0; i < _activeClients.Count; i++)
                         {
-                            if (_activeClients[i].Address.ToString() == remoteFullIp.Address.ToString())
+                            if (_activeClients[i].Address.ToString() == remoteIp.Address.ToString())
                             {
                                 addClient = false;
                                 break;
@@ -75,9 +71,8 @@ namespace Server.Solvers
 
                         if (addClient == true)
                         {
-                            _activeClients.Add(remoteFullIp);
-                            _server.SendStatus(Statuses.OK, remoteFullIp);
-                            Notify.Invoke(_activeClients.Count, remoteFullIp.ToString());
+                            _activeClients.Add(remoteIp);
+                            Notify.Invoke(_activeClients.Count, remoteIp.ToString());
                         }
                     }
                 }
@@ -131,20 +126,18 @@ namespace Server.Solvers
                 var vectorRequest = new double[rowsCount];
                 var iterator = 0;
 
-                _server.SendInt(rowsCount, _activeClients[i]);
-                _server.SendInt(vector.Length, _activeClients[i]);
-
+                _server.Send(rowsCount, _activeClients[i], 0);
+                _server.Send(vector.Length, _activeClients[i], 1);
 
                 for (var j = i; j < vector.Length; j += _activeClients.Count)
                 {
-
-                    _server.SendArray(matrix[j], _activeClients[i]);
+                    _server.Send(matrix[j], _activeClients[i], iterator);
 
                     vectorRequest[iterator] = vector[j];
                     iterator++;
                 }
 
-                _server.SendArray(vectorRequest, _activeClients[i]);
+                _server.Send(vectorRequest, _activeClients[i]);
 
             });
         }
@@ -153,9 +146,9 @@ namespace Server.Solvers
         {
             for (var i = 0; i < _activeClients.Count; i++)
             {
-                _server.SendStatus(Statuses.OK, _activeClients[i]);
+                _server.Send(0, _activeClients[i]);
 
-                if (_server.ReceiveStatus(_activeClients[i]) == Statuses.OK)
+                if (_server.Receive(_activeClients[i]).Data[0] == 0)
                 {
                     _waitingClients.Add(_activeClients[i]);
                     _activeClients.RemoveAt(i);
@@ -176,10 +169,8 @@ namespace Server.Solvers
 
             for (var i = 0; i < _activeClients.Count; i++)
             {
-                _server.SendStatus(Statuses.OK, _activeClients[i]);
-
-                rows[i] = _server.ReceiveArray(matrixSize, _activeClients[i]);
-                vector[i] = _server.ReceiveDouble(_activeClients[i]);
+                vector[i] = _server.Receive(_activeClients[i]).Data[0];
+                rows[i] = _server.ReceiveArray(_activeClients[i]);
             }
 
             var mainElementIndex = FindMainElement(rows, iteration);
@@ -188,16 +179,13 @@ namespace Server.Solvers
             {
                 if (i != mainElementIndex)
                 {
-                    _server.SendStatus(Statuses.NO, _activeClients[i]);
-
-                    _server.SendArray(rows[mainElementIndex], _activeClients[i]);
-
-                    _server.SendDouble(vector[mainElementIndex], _activeClients[i]);
-
+                    _server.Send(1, _activeClients[i], 0);
+                    _server.Send(rows[mainElementIndex], _activeClients[i], 1);
+                    _server.Send(vector[mainElementIndex], _activeClients[i], 2);
                 }
                 else
                 {
-                    _server.SendStatus(Statuses.OK, _activeClients[i]);
+                    _server.Send(0, _activeClients[i], 0);
                 }
             }
         }
@@ -207,18 +195,18 @@ namespace Server.Solvers
 
             for (var i = 0; i < _waitingClients.Count; i++)
             {
-                _server.SendStatus(Statuses.OK, _waitingClients[i]);
+                _server.Send(0, _waitingClients[i]);
 
-                var rowsCount = _server.ReceiveInt(_waitingClients[i]);
+                var pathes = _server.ReceiveArray(_waitingClients[i]);
 
-                var pathes = _server.ReceiveArray(rowsCount, _waitingClients[i]);
+                var arrays = _server.ReceiveMatrix(pathes.Length, _waitingClients[i]);
 
-                for (var j = 0; j < rowsCount; j++)
+                var vectorList = _server.ReceiveArray(_waitingClients[i]);
+
+                for (var j = 0; j < pathes.Length; j++)
                 {
-                    matrix[(int)pathes[j]] = _server.ReceiveArray(matrix.Length, _waitingClients[i]);
+                    matrix[(int)pathes[j]] = arrays[j];
                 }
-
-                var vectorList = _server.ReceiveArray(rowsCount, _waitingClients[i]);
 
                 for (var j = 0; j < vectorList.Length; j++)
                 {

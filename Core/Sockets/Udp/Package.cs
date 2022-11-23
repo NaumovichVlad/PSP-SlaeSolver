@@ -6,9 +6,9 @@ using System.Threading.Tasks;
 
 namespace Core.Sockets.Udp
 {
-    public enum Statuses
+    public class Package
     {
-        OK,
-        NO,
+        public int Id { get; set; }
+        public double[] Data { get; set; }
     }
 }

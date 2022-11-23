@@ -2,3 +2,6 @@
 
 # SYSLIB0006: Тип или член устарел
 dotnet_diagnostic.SYSLIB0006.severity = silent
+
+# SYSLIB0011: Тип или член устарел
+dotnet_diagnostic.SYSLIB0011.severity = silent
