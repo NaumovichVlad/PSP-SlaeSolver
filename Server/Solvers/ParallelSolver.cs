@@ -125,30 +125,33 @@ namespace Server.Solvers
                 var rowsCount = CalculateRowsCountForClient(matrix.Length, _activeClients.Count, i);
                 var vectorRequest = new double[rowsCount];
                 var iterator = 0;
+                var index = 0;
 
                 _server.Send(rowsCount, _activeClients[i], 0);
                 _server.Send(vector.Length, _activeClients[i], 1);
 
                 for (var j = i; j < vector.Length; j += _activeClients.Count)
                 {
-                    _server.Send(matrix[j], _activeClients[i], iterator);
-
-                    vectorRequest[iterator] = vector[j];
-                    iterator++;
+                    _server.Send(matrix[j], _activeClients[i], ref index);
+                    vectorRequest[iterator++] = vector[j];
                 }
 
-                _server.Send(vectorRequest, _activeClients[i]);
+                _server.Send(vectorRequest, _activeClients[i], ref index);
 
             });
         }
 
         private void GetForwardPhase(int iteration, int matrixSize)
         {
+            var index = 0;
+
             for (var i = 0; i < _activeClients.Count; i++)
             {
                 _server.Send(0, _activeClients[i]);
 
-                if (_server.Receive(_activeClients[i]).Data[0] == 0)
+                var responce = _server.Receive(_activeClients[i]);
+
+                if (responce.Data[0] == 0 && responce.Data.Length == 1)
                 {
                     _waitingClients.Add(_activeClients[i]);
                     _activeClients.RemoveAt(i);
@@ -169,6 +172,8 @@ namespace Server.Solvers
 
             for (var i = 0; i < _activeClients.Count; i++)
             {
+                _server.Send(0, _activeClients[i]);
+
                 vector[i] = _server.Receive(_activeClients[i]).Data[0];
                 rows[i] = _server.ReceiveArray(_activeClients[i]);
             }
@@ -179,14 +184,17 @@ namespace Server.Solvers
             {
                 if (i != mainElementIndex)
                 {
-                    _server.Send(1, _activeClients[i], 0);
-                    _server.Send(rows[mainElementIndex], _activeClients[i], 1);
-                    _server.Send(vector[mainElementIndex], _activeClients[i], 2);
+                    _server.Send(1, _activeClients[i]);
+                    _server.Send(vector[mainElementIndex], _activeClients[i]);
+                    _server.Send(rows[mainElementIndex], _activeClients[i], ref index);
+                    
                 }
                 else
                 {
                     _server.Send(0, _activeClients[i], 0);
                 }
+
+                _server.Receive(_activeClients[i]);
             }
         }
 

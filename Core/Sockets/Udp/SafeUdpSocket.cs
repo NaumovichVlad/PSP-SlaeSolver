@@ -14,7 +14,7 @@ namespace Core.Sockets.Udp
     public class SafeUdpSocket
     {
         private readonly UdpClient _client;
-        private const int _packageSize = 500;
+        private const int _packageSize = 400;
 
         public UdpClient Client => _client;
 
@@ -71,6 +71,8 @@ namespace Core.Sockets.Udp
                 packages.Add(Receive(clientIEP));
             }
 
+            Send(0, clientIEP);
+
             return packages;
         }
 
@@ -119,7 +121,7 @@ namespace Core.Sockets.Udp
             return array;
         }
 
-        public void Send(double[] array, IPEndPoint clientIEP, int firstPackageNum = 0)
+        public void Send(double[] array, IPEndPoint clientIEP, ref int firstPackageNum)
         {
             var packageCount = CalculatePackageCount(array.Length);
 
@@ -128,7 +130,7 @@ namespace Core.Sockets.Udp
             for (var i = 0; i < packageCount; i++)
             {
                 int packageSize;
-                var package = new Package() { Id = firstPackageNum };
+                var package = new Package() { Id = firstPackageNum++ };
 
                 if (i == packageCount - 1)
                 {
@@ -143,8 +145,9 @@ namespace Core.Sockets.Udp
                 Array.Copy(array, _packageSize * i, package.Data, 0, packageSize);
 
                 _client.Send(Encoding.ASCII.GetBytes(JsonConvert.SerializeObject(package)), clientIEP);
-                Thread.Sleep(1);
             }
+
+            Receive(clientIEP);
         }
 
         public void Send(double number, IPEndPoint clientIEP, int packageNum = 0)

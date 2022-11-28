@@ -52,15 +52,17 @@ namespace Client
                 var complItetations = new double[rowsCount];
                 var vector = _client.ReceiveArray(_serverIEP);
                 var rowsComplited = 0;
+                var index = 0;
 
-                
-                
+
                 Console.WriteLine($"Number of vector elements received: {vector.Length}");
 
                 Console.WriteLine("\nForward phase started");
 
                 for (var i = 0; i < matrixSize; i++)
                 {
+                    _client.Receive(_serverIEP);
+
                     if (rowsComplited == rowsCount || i == matrixSize - 1)
                     {
                         if (rowsComplited != rowsCount)
@@ -76,14 +78,16 @@ namespace Client
 
                         Console.WriteLine("\nSending started");
 
-                        _client.Send(complItetations, _serverIEP);
+                        index = 0;
+
+                        _client.Send(complItetations, _serverIEP, ref index);
 
                         for (var j = 0; j < rowsCount; j++)
                         {
-                            _client.Send(rows[j], _serverIEP);
+                            _client.Send(rows[j], _serverIEP, ref index);
                         }
 
-                        _client.Send(vector, _serverIEP);
+                        _client.Send(vector, _serverIEP, ref index);
 
                         Console.WriteLine("\nForward phase complited");
 
@@ -98,19 +102,25 @@ namespace Client
 
                     var mainRowIndex = FindMainElement(rows, i, rowsComplited);
 
+                    _client.Receive(_serverIEP);
+
                     _client.Send(vector[mainRowIndex], _serverIEP);
 
-                    _client.Send(rows[mainRowIndex], _serverIEP);
+                    _client.Send(rows[mainRowIndex], _serverIEP, ref index);
 
                     if (_client.Receive(_serverIEP).Data[0] == 1)
                     {
-                        var mainRow = _client.ReceiveArray(_serverIEP);
                         var mainVector = _client.Receive(_serverIEP).Data[0];
+                        var mainRow = _client.ReceiveArray(_serverIEP);
+                        
+                        _client.Send(0, _serverIEP);
 
                         ExecuteForwardPhaseIteration(rows, mainRow, vector, mainVector, i, rowsComplited);
                     }
                     else
                     {
+                        _client.Send(0, _serverIEP);
+
                         SwapRows(rows, vector, mainRowIndex, rowsComplited);
 
                         complItetations[rowsComplited] = i;

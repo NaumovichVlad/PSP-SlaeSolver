@@ -6,7 +6,6 @@ using System.Text;
 Console.Write("Введите Ip сервера: ");
 
 var server = new GaussSlaeSolver(8080, Console.ReadLine());
-
 if (server.Connect())
 {
     Console.WriteLine("Connected");
