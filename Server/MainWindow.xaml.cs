@@ -47,6 +47,7 @@ namespace Server
             PathAParallelTextBox.Text = "E:\\Study\\Current\\ПСП\\Курсовая работа\\TestData\\test1.A";
             PathBParallelTextBox.Text = "E:\\Study\\Current\\ПСП\\Курсовая работа\\TestData\\test1.B";
             PathResParallelTextBox.Text = "E:\\Study\\Current\\ПСП\\Курсовая работа\\TestData\\test.des";
+            PathNodesParallelTextBox.Text = "E:\\Study\\Current\\ПСП\\Курсовая работа\\TestData\\nodes.txt";
 
             PathALinearTextBox.Text = "E:\\Study\\Current\\ПСП\\Курсовая работа\\TestData\\test1.A";
             PathBLinearTextBox.Text = "E:\\Study\\Current\\ПСП\\Курсовая работа\\TestData\\test1.B";
@@ -119,11 +120,10 @@ namespace Server
 
         private void StartServerButton_Click(object sender, RoutedEventArgs e)
         {
-            _server = new ParallelSolver(int.Parse(ServerPortTextBox.Text), ServerIpTextBox.Text, new FileManagerTxt(), int.Parse(WaitClientsCountTextBox.Text), new TimeLogger());
+            _server = new ParallelSolver(int.Parse(ServerPortTextBox.Text), ServerIpTextBox.Text, new FileManagerTxt(), new TimeLogger());
             _server.Notify += UpdateConnections;
-            _server.StartServer();
-
             ResultsLabelTab2.Content += $"Server started in {ServerIpTextBox.Text}:{ServerPortTextBox.Text}\n";
+            _server.StartServer(PathNodesParallelTextBox.Text);
         }
 
 
@@ -248,6 +248,16 @@ namespace Server
                 PathVerParallelTextBox.IsReadOnly = true;
                 PathVerSearchParallelButton.IsEnabled = false;
             }
+        }
+
+        private void PathNodesSearchParallelButton_Click(object sender, RoutedEventArgs e)
+        {
+            var ofDialog = new OpenFileDialog();
+
+            ofDialog.Filter = "Addresses (*.txt)|*.txt";
+
+            ofDialog.ShowDialog();
+            PathNodesParallelTextBox.Text = _ofDialog.FileName;
         }
     }
 }

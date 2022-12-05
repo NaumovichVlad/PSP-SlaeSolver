@@ -52,6 +52,22 @@ namespace DataAccess.Managers
             }
         }
 
+        public List<string> GetNodesAddresses(string nodesPath)
+        {
+            var nodes = new List<string>();
+            string? line;
+
+            using (var sr = new StreamReader(nodesPath))
+            {
+                while ((line = sr.ReadLine()) != null)
+                {
+                    nodes.Add(line.Trim());
+                }
+            }
+
+            return nodes;
+        }
+
         private double[] ParseLine(string line)
         {
             var pattern = $"\\s+";

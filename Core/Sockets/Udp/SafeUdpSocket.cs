@@ -14,7 +14,7 @@ namespace Core.Sockets.Udp
     public class SafeUdpSocket
     {
         private readonly UdpClient _client;
-        private const int _packageSize = 400;
+        private const int _packageSize = 1000;
 
         public UdpClient Client => _client;
 
@@ -27,11 +27,6 @@ namespace Core.Sockets.Udp
             _client.Ttl = 240;
             _client.Client.ReceiveBufferSize = 100000000;
             _client.Client.SendBufferSize = 100000000;
-        }
-
-        public SafeUdpSocket()
-        {
-            _client = new UdpClient();
         }
 
         public Package Receive(IPEndPoint client)
@@ -183,9 +178,7 @@ namespace Core.Sockets.Udp
             try
             {
                 var package = JsonConvert.DeserializeObject<Package>(Encoding.ASCII.GetString(_client.Receive(ref clientIEP)));
-
-
-                return package.Id == -1;
+                return package.Data[0] == -1;
             }
             catch (Exception)
             {

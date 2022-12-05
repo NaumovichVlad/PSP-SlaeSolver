@@ -9,31 +9,41 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Client
+namespace Node
 {
     public class GaussSlaeSolver : GaussMethodSolverParallel
     {
-        private readonly SafeUdpSocket _client;
-        private readonly IPEndPoint _serverIEP;
+        private SafeUdpSocket _client;
+        private IPEndPoint _serverIEP;
 
-        public GaussSlaeSolver(int serverPort, string serverIp)
+        public GaussSlaeSolver(int port, string ip)
         {
-            _client = new SafeUdpSocket();
-            _serverIEP = new IPEndPoint(IPAddress.Parse(serverIp), serverPort);
+            _client = new SafeUdpSocket(ip, port);
         }
 
-        public bool Connect()
+        public bool Listen()
         {
             try
             {
-                _client.Send(0, _serverIEP, -1);
-                return true;
+                var data = new byte[256];
+                var remoteIp = new IPEndPoint(IPAddress.Any, 0);
+
+                if (_client.TryAccept(ref remoteIp))
+                {
+                    _serverIEP = remoteIp;
+
+                    _client.Send(0, _serverIEP);
+
+                    return true;
+                }
             }
             catch (Exception ex)
             {
                 Console.WriteLine(ex.Message);
-                return false;
+                _client.Close();
             }
+
+            return false;
         }
 
         public void Process()

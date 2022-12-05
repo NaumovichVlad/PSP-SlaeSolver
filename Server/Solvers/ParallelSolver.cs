@@ -20,74 +20,44 @@ namespace Server.Solvers
         private readonly SafeUdpSocket _server;
         private List<IPEndPoint> _activeClients;
         private List<IPEndPoint> _waitingClients;
-        private readonly int _waitClientsNum;
 
         private readonly IFileManager _fileManager;
         private readonly ITimeLogger _timeLogger;
-        private readonly Thread _listeningTask;
 
         public delegate void ClientConnection(int count, string address);
         public event ClientConnection Notify;
 
         public int ClientNum { get; private set; }
 
-        public ParallelSolver(int port, string ipAddress, IFileManager fileManager, int waitClientsNum, ITimeLogger timeLogger)
+        public ParallelSolver(int port, string ipAddress, IFileManager fileManager, ITimeLogger timeLogger)
         {
             _server = new SafeUdpSocket(ipAddress, port);
             _activeClients = new List<IPEndPoint>();
             _fileManager = fileManager;
-            _listeningTask = new Thread(Listen);
             _waitingClients = new List<IPEndPoint>();
-            _waitClientsNum = waitClientsNum;
             _timeLogger = timeLogger;
         }
 
-        public void StartServer()
+        public void StartServer(string nodesSilePath)
         {
-            _listeningTask.Start();
-        }
+            var addresses = _fileManager.GetNodesAddresses(nodesSilePath);
 
-        private void Listen()
-        {
-            try
+            foreach (var addr in addresses)
             {
-                while (_activeClients.Count < _waitClientsNum)
-                {
-                    var data = new byte[256];
-                   var remoteIp = new IPEndPoint(IPAddress.Any, 0);
+                var address = addr.Split(':');
+                var nodeAddress = new IPEndPoint(IPAddress.Parse(address[0]), int.Parse(address[1]));
 
-                    if (_server.TryAccept(ref remoteIp))
-                    {
-                        bool addClient = true;
+                _server.Send(-1, nodeAddress);
+                _server.Receive(nodeAddress);
 
-                        for (int i = 0; i < _activeClients.Count; i++)
-                        {
-                            if (_activeClients[i].Address.ToString() == remoteIp.Address.ToString())
-                            {
-                                addClient = false;
-                                break;
-                            }
-                        }
-
-                        if (addClient == true)
-                        {
-                            _activeClients.Add(remoteIp);
-                            Notify.Invoke(_activeClients.Count, remoteIp.ToString());
-                        }
-                    }
-                }
+                _activeClients.Add(nodeAddress);
+                Notify.Invoke(_activeClients.Count, addr);
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-                _server.Close();
-            }
+
         }
 
         public double[] Solve(string pathA, string pathB, string pathRes)
         {
-            _listeningTask.Interrupt();
-
             Stopwatch stopwatch = new Stopwatch();
 
             stopwatch.Start();
