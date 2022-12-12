@@ -57,16 +57,6 @@ namespace SlaeSolverTests.Core.Methods.Linear
             Test(a, b, expected);
         }
 
-        [TestMethod]
-        public void Solve_Test4()
-        {
-            var a = _reader.ReadMatrix("../../../../../TestData/test3.A");
-            var b = _reader.ReadVector("../../../../../TestData/test3.B");
-            var expected = _reader.ReadVector("../../../../../TestData/test1.des");
-
-            Test(a, b, expected);
-        }
-
         private void Test(double[][] a, double[] b, double[] expected)
         {
             ISlaeSolverLinear solver = new GaussMethodSolverLinear();

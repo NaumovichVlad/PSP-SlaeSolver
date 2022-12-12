@@ -15,9 +15,7 @@ namespace Core.Methods.Linear
 
             for (var i = 0; i < n - 1; i++)
             {
-                var mainRowIndex = FindMainElement(a, i);
 
-                SwapRows(a, b, mainRowIndex, i);
                 ExecuteForwardPhaseIteration(a, b, i);
             }
 
@@ -71,39 +69,6 @@ namespace Core.Methods.Linear
             }
 
             answers[iteration] = (vector[iteration] - sum) / matrix[iteration][iteration];
-        }
-
-        protected int FindMainElement(double[][] matrix, int iteration)
-        {
-            var max = Math.Abs(matrix[iteration][iteration]);
-            var maxIndex = iteration;
-
-            for (var i = iteration + 1; i < matrix.GetLength(0); i++)
-            {
-                if (Math.Abs(matrix[i][iteration]) > max)
-                {
-                    max = Math.Abs(matrix[i][iteration]);
-                    maxIndex = i;
-                }
-            }
-
-            return maxIndex;
-        }
-
-        private void SwapRows(double[][] matrix, double[] vector, int mainRowIndex, int iteration)
-        {
-            for (var j = 0; j < vector.Length; j++)
-            {
-                var temp = matrix[iteration][j];
-
-                matrix[iteration][j] = matrix[mainRowIndex][j];
-                matrix[mainRowIndex][j] = temp;
-            }
-
-            var tmp = vector[iteration];
-
-            vector[iteration] = vector[mainRowIndex];
-            vector[mainRowIndex] = tmp;
         }
     }
 }

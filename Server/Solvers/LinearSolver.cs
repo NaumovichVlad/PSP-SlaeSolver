@@ -43,6 +43,8 @@ namespace Server.Solvers
 
             stopwatch.Stop();
 
+            _fileManager.SaveResults(pathRes, result);
+
             _timeLogger.SolvingTime = stopwatch.ElapsedMilliseconds;
         }
 

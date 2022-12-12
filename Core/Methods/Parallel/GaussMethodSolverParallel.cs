@@ -44,37 +44,5 @@ namespace Core.Methods.Parallel
 
             return answers;
         }
-
-        protected int FindMainElement(double[][] matrix, int iteration, int shift = 0)
-        {
-            var max = Math.Abs(matrix[shift][iteration]);
-            var maxIndex = shift;
-            for (var i = shift; i < matrix.GetLength(0); i++)
-            {
-                if (Math.Abs(matrix[i][iteration]) > max)
-                {
-                    max = Math.Abs(matrix[i][iteration]);
-                    maxIndex = i;
-                }
-            }
-
-            return maxIndex;
-        }
-
-        protected void SwapRows(double[][] matrix, double[] vector, int mainRowIndex, int iteration)
-        {
-            for (var j = 0; j < matrix[iteration].Length; j++)
-            {
-                var temp = matrix[iteration][j];
-
-                matrix[iteration][j] = matrix[mainRowIndex][j];
-                matrix[mainRowIndex][j] = temp;
-            }
-
-            var tmp = vector[iteration];
-
-            vector[iteration] = vector[mainRowIndex];
-            vector[mainRowIndex] = tmp;
-        }
     }
 }

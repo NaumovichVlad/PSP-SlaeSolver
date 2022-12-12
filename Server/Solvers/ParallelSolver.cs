@@ -17,9 +17,8 @@ namespace Server.Solvers
 {
     public class ParallelSolver : GaussMethodSolverParallel
     { 
-        private readonly SafeUdpSocket _server;
+        private readonly UdpSocket _server;
         private List<IPEndPoint> _activeClients;
-        private List<IPEndPoint> _waitingClients;
 
         private readonly IFileManager _fileManager;
         private readonly ITimeLogger _timeLogger;
@@ -31,10 +30,9 @@ namespace Server.Solvers
 
         public ParallelSolver(int port, string ipAddress, IFileManager fileManager, ITimeLogger timeLogger)
         {
-            _server = new SafeUdpSocket(ipAddress, port);
+            _server = new UdpSocket(ipAddress, port);
             _activeClients = new List<IPEndPoint>();
             _fileManager = fileManager;
-            _waitingClients = new List<IPEndPoint>();
             _timeLogger = timeLogger;
         }
 
@@ -83,6 +81,11 @@ namespace Server.Solvers
 
             stopwatch.Stop();
 
+            foreach (var client in _activeClients)
+            {
+                _server.Send(1, client);
+            }
+
             _timeLogger.SolvingTime = stopwatch.ElapsedMilliseconds;
 
             return result;
@@ -97,8 +100,7 @@ namespace Server.Solvers
                 var iterator = 0;
                 var index = 0;
 
-                _server.Send(rowsCount, _activeClients[i], 0);
-                _server.Send(vector.Length, _activeClients[i], 1);
+                _server.Send(new double[2] { rowsCount, vector.Length }, _activeClients[i], ref index);
 
                 for (var j = i; j < vector.Length; j += _activeClients.Count)
                 {
@@ -115,84 +117,56 @@ namespace Server.Solvers
         {
             var index = 0;
 
+            var row = new double[matrixSize];
+            var vector = 0.0;
+
             for (var i = 0; i < _activeClients.Count; i++)
             {
-                _server.Send(0, _activeClients[i]);
-
-                var responce = _server.Receive(_activeClients[i]);
-
-                if (responce.Data[0] == 0 && responce.Data.Length == 1)
+                if (i == (iteration % _activeClients.Count()))
                 {
-                    _waitingClients.Add(_activeClients[i]);
-                    _activeClients.RemoveAt(i);
+                    _server.Send(0, _activeClients[i]);
 
-                    i--;
-
-                    continue;
-                }
-            }
-
-            if (_activeClients.Count == 0)
-            {
-                return;
-            }
-
-            var rows = new double[_activeClients.Count][];
-            var vector = new double[_activeClients.Count];
-
-            for (var i = 0; i < _activeClients.Count; i++)
-            {
-                _server.Send(0, _activeClients[i]);
-
-                vector[i] = _server.Receive(_activeClients[i]).Data[0];
-                rows[i] = _server.ReceiveArray(_activeClients[i]);
-            }
-
-            var mainElementIndex = FindMainElement(rows, iteration);
-
-            for (var i = 0; i < _activeClients.Count; i++)
-            {
-                if (i != mainElementIndex)
-                {
-                    _server.Send(1, _activeClients[i]);
-                    _server.Send(vector[mainElementIndex], _activeClients[i]);
-                    _server.Send(rows[mainElementIndex], _activeClients[i], ref index);
-                    
+                    row = _server.ReceiveArray(_activeClients[i]);
+                    vector = _server.Receive(_activeClients[i]).Data[0];
                 }
                 else
                 {
-                    _server.Send(0, _activeClients[i], 0);
+                    _server.Send(1, _activeClients[i]);
                 }
+            }
 
-                _server.Receive(_activeClients[i]);
+            for (var i = 0; i < _activeClients.Count; i++)
+            {
+                if (i != (iteration % _activeClients.Count()))
+                {
+                    _server.Send(vector, _activeClients[i]);
+                    _server.Receive(_activeClients[i]);
+                    _server.Send(row, _activeClients[i], ref index);
+                }
             }
         }
 
         private double[] GetBackPhase(double[][] matrix, double[] vector)
         {
 
-            for (var i = 0; i < _waitingClients.Count; i++)
+            for (var i = 0; i < _activeClients.Count; i++)
             {
-                _server.Send(0, _waitingClients[i]);
+                _server.Send(0, _activeClients[i]);
 
-                var pathes = _server.ReceiveArray(_waitingClients[i]);
+                var rowsCount = _server.Receive(_activeClients[i]).Data[0];
+                _server.Send(0, _activeClients[i]);
+                var arrays = _server.ReceiveMatrix((int) rowsCount, _activeClients[i]);
+                _server.Send(0, _activeClients[i]);
+                var vectorList = _server.ReceiveArray(_activeClients[i]);
+                var iteration = i; 
 
-                var arrays = _server.ReceiveMatrix(pathes.Length, _waitingClients[i]);
-
-                var vectorList = _server.ReceiveArray(_waitingClients[i]);
-
-                for (var j = 0; j < pathes.Length; j++)
+                for (var j = 0; j < rowsCount; j++)
                 {
-                    matrix[(int)pathes[j]] = arrays[j];
-                }
-
-                for (var j = 0; j < vectorList.Length; j++)
-                {
-                    vector[(int)pathes[j]] = vectorList[j];
+                    matrix[iteration] = arrays[j];
+                    vector[iteration] = vectorList[j];
+                    iteration += _activeClients.Count;
                 }
             }
-
-            _waitingClients = new List<IPEndPoint>();
 
             return ExecuteBackPhaseIteration(matrix, vector);
         }

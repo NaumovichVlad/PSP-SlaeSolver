@@ -11,14 +11,14 @@ using System.Threading.Tasks;
 
 namespace Core.Sockets.Udp
 {
-    public class SafeUdpSocket
+    public class UdpSocket
     {
         private readonly UdpClient _client;
-        private const int _packageSize = 1000;
+        private const int _packageSize = 150;
 
         public UdpClient Client => _client;
 
-        public SafeUdpSocket(string ip, int port)
+        public UdpSocket(string ip, int port)
         {
 
             _client = new UdpClient();
@@ -59,14 +59,15 @@ namespace Core.Sockets.Udp
         public List<Package> ReceivePackages(IPEndPoint clientIEP)
         {
             var packageCount = (int)Receive(clientIEP).Data[0];
+            
+            Send(0, clientIEP);
+
             var packages = new List<Package>();
 
             for (var i = 0; i < packageCount; i++)
             {
                 packages.Add(Receive(clientIEP));
             }
-
-            Send(0, clientIEP);
 
             return packages;
         }
@@ -122,6 +123,8 @@ namespace Core.Sockets.Udp
 
             Send(packageCount, clientIEP);
 
+            Receive(clientIEP);
+
             for (var i = 0; i < packageCount; i++)
             {
                 int packageSize;
@@ -141,8 +144,6 @@ namespace Core.Sockets.Udp
 
                 _client.Send(Encoding.ASCII.GetBytes(JsonConvert.SerializeObject(package)), clientIEP);
             }
-
-            Receive(clientIEP);
         }
 
         public void Send(double number, IPEndPoint clientIEP, int packageNum = 0)
