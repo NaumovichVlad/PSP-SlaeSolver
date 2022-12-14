@@ -70,5 +70,20 @@ namespace DataAccess.Managers
 
             return elements.Select(e => double.Parse(e)).ToArray();
         }
+
+        public void SaveLoadTestingResults(double[] testingResults, string testingResultsPath)
+        {
+            using (var sw = new StreamWriter(testingResultsPath, true))
+            {
+                var result = $"\n\tНагрузочный тест\n" +
+                             $"Размерность матрицы: {testingResults[0]}x{testingResults[0]}\n" +
+                             $"Количество счётных узлов: {testingResults[1]}\n" +
+                             $"Погрешность max: {testingResults[2]}\n" +
+                             $"Погрешность min: {testingResults[3]}\n" +
+                             $"Евклидова норма: {testingResults[4]}\n";
+
+                sw.WriteLine(result);
+            }
+        }
     }
 }

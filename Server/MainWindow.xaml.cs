@@ -6,6 +6,7 @@ using Server.Loggers;
 using Server.Solvers;
 using System;
 using System.Diagnostics;
+using System.Linq;
 using System.Windows;
 
 namespace Server
@@ -35,6 +36,7 @@ namespace Server
             PathBParallelTextBox.Text = "E:\\Study\\Current\\ПСП\\Курсовая работа\\TestData\\test1.B";
             PathResParallelTextBox.Text = "E:\\Study\\Current\\ПСП\\Курсовая работа\\TestData\\test.des";
             PathNodesParallelTextBox.Text = "E:\\Study\\Current\\ПСП\\Курсовая работа\\TestData\\nodes.txt";
+            PathLoadTestParallelTextBox.Text = "E:\\Study\\Current\\ПСП\\Курсовая работа\\TestData\\loadTests.txt";
 
             PathALinearTextBox.Text = "E:\\Study\\Current\\ПСП\\Курсовая работа\\TestData\\test1.A";
             PathBLinearTextBox.Text = "E:\\Study\\Current\\ПСП\\Курсовая работа\\TestData\\test1.B";
@@ -176,20 +178,24 @@ namespace Server
 
             if (VerifyCheckBox.IsChecked == true)
             {
-                var expectedResults = fileManager.ReadVector(PathVerParallelTextBox.Text);
-
-                if (VerifyResults(expectedResults, results))
-                {
-                    ResultsLabelTab2.Content += "\nПроверка результатов успешно завершена\n";
-                }
-                else
-                {
-                    ResultsLabelTab2.Content += "\nПроверка результатов не пройдена!\n";
-                }
+                LoadTesting(results, fileManager);
             }
 
             OpenResults(PathResParallelTextBox.Text);
 
+        }
+
+        private void LoadTesting(double[] results, IFileManager fileManager)
+        {
+            var expectedResults = fileManager.ReadVector(PathVerParallelTextBox.Text);
+
+            var loadTestREsults = VerifyResults(expectedResults, results);
+
+            fileManager.SaveLoadTestingResults(loadTestREsults, PathLoadTestParallelTextBox.Text);
+
+            ResultsLabelTab2.Content += "\nПроверка результатов успешно завершена\n";
+
+            OpenResults(PathLoadTestParallelTextBox.Text);
         }
 
         private void OpenResults(string resultsPath)
@@ -203,24 +209,23 @@ namespace Server
 
             p.Start();
         }
-        private bool VerifyResults(double[] expected, double[] actual)
+        private double[] VerifyResults(double[] expected, double[] actual)
         {
-            if (expected.Length == actual.Length)
+            var results = new double[5];
+            var errorVector = new double[actual.Length];
+
+            for (var i = 0; i < expected.Length; i++)
             {
-                for (var i = 0; i < expected.Length; i++)
-                {
-                    if (Math.Abs(expected[i] - actual[i]) > Math.Pow(1, -5))
-                    {
-                        return false;
-                    }
-                }
-            }
-            else
-            {
-                return false;
+                errorVector[i] = actual[i] - expected[i];
             }
 
-            return true;
+            results[0] = expected.Length;
+            results[1] = int.Parse(ClientsCountTextBox.Text);
+            results[3] = errorVector.Min(el => Math.Abs(el));
+            results[2] = errorVector.Max(el => Math.Abs(el));
+            results[4] = Math.Sqrt(errorVector.Sum(el => Math.Pow(el, 2)));
+
+            return results;
         }
 
         private void VerifyCheckBox_Checked(object sender, RoutedEventArgs e)
@@ -229,11 +234,13 @@ namespace Server
             {
                 PathVerParallelTextBox.IsReadOnly = false;
                 PathVerSearchParallelButton.IsEnabled = true;
+                PathLoadTestSearchParallelButton.IsEnabled = true;
             }
             else
             {
                 PathVerParallelTextBox.IsReadOnly = true;
                 PathVerSearchParallelButton.IsEnabled = false;
+                PathLoadTestSearchParallelButton.IsEnabled = false;
             }
         }
 
@@ -245,6 +252,17 @@ namespace Server
 
             ofDialog.ShowDialog();
             PathNodesParallelTextBox.Text = _ofDialog.FileName;
+        }
+
+        private void PathLoadTestSearchParallelButton_Click(object sender, RoutedEventArgs e)
+        {
+            var ofDialog = new OpenFileDialog();
+
+            ofDialog.Filter = "Loadtest (*.txt)|*.txt";
+
+            ofDialog.ShowDialog();
+
+            PathLoadTestParallelTextBox.Text = _ofDialog.FileName;
         }
     }
 }
