@@ -1,7 +1,4 @@
 ﻿using Client;
-using System.Net;
-using System.Net.Sockets;
-using System.Text;
 
 Console.Write("Введите адресс счётного узла: ");
 
@@ -14,7 +11,7 @@ Console.WriteLine("Waiting connection...");
 if (server.Listen())
 {
     Console.WriteLine("Connected");
-    while(server.Process());
+    while (server.Process()) ;
 }
 else
 {

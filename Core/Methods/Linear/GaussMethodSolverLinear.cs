@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Core.Methods.Linear
+﻿namespace Core.Methods.Linear
 {
     public class GaussMethodSolverLinear : ISlaeSolverLinear
     {
@@ -15,7 +9,6 @@ namespace Core.Methods.Linear
 
             for (var i = 0; i < n - 1; i++)
             {
-
                 ExecuteForwardPhaseIteration(a, b, i);
             }
 

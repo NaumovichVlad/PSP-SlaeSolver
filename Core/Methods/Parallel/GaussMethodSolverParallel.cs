@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Core.Methods.Parallel
+﻿namespace Core.Methods.Parallel
 {
     public class GaussMethodSolverParallel
     {
@@ -26,7 +20,7 @@ namespace Core.Methods.Parallel
 
         protected double[] ExecuteBackPhaseIteration(double[][] matrix, double[] vector)
         {
-            
+
             var n = vector.Length;
             var answers = new double[n];
 

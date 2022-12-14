@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Diagnostics;
 
 namespace Core.Methods.Linear
 {
@@ -12,11 +7,10 @@ namespace Core.Methods.Linear
         private double _eps = Math.Pow(10, -9);
         public double[] Solve(double[][] a, double[] b)
         {
-            
             var d = new double[a.Length];
             var result = new double[a.Length];
             double dMax = _eps + 1;
-            
+
             while (dMax > _eps)
             {
                 Debug.Print(dMax.ToString());
@@ -38,10 +32,9 @@ namespace Core.Methods.Linear
                 }
 
                 dMax = d.Max();
-            } 
+            }
 
             return result;
         }
-
     }
 }

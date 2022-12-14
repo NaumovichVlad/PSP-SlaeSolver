@@ -1,20 +1,16 @@
-﻿using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using Core.Sockets.Queue;
+using Newtonsoft.Json;
 using System.Net;
 using System.Net.Sockets;
-using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Core.Sockets.Udp
 {
     public class UdpSocket
     {
         private readonly UdpClient _client;
-        private const int _packageSize = 150;
+        private readonly SentPackagesQueue _packagesQueue;
+        private const int _packageSize = 350;
 
         public UdpClient Client => _client;
 
@@ -27,46 +23,45 @@ namespace Core.Sockets.Udp
             _client.Ttl = 240;
             _client.Client.ReceiveBufferSize = 100000000;
             _client.Client.SendBufferSize = 100000000;
+            _packagesQueue = new SentPackagesQueue();
         }
 
-        public Package Receive(IPEndPoint client)
+        public Package Receive(IPEndPoint client, ref int packageIndex)
         {
-            var data = _client.Receive(ref client);
-
-            var package = JsonConvert.DeserializeObject<Package>(Encoding.ASCII.GetString(data));
+            var package = _packagesQueue.ReceivePackage(_client, client, ref packageIndex);
 
             return package;
         }
 
-        public double[][] ReceiveMatrix(int rowsCount, IPEndPoint clientIEP)
+        public double[][] ReceiveMatrix(int rowsCount, IPEndPoint clientIEP, ref int packageIndex, ref int sendPackageIndex)
         {
             var packages = new List<Package>();
 
             for (var i = 0; i < rowsCount; i++)
             {
-                packages.AddRange(ReceivePackages(clientIEP));
+                packages.AddRange(ReceivePackages(clientIEP, ref packageIndex, ref sendPackageIndex));
             }
 
             return JoinPackages(packages, rowsCount);
         }
 
 
-        public double[] ReceiveArray(IPEndPoint clientIEP)
+        public double[] ReceiveArray(IPEndPoint clientIEP, ref int packageIndex, ref int sendPackageIndex)
         {
-            return JoinPackages(ReceivePackages(clientIEP));
+            return JoinPackages(ReceivePackages(clientIEP, ref packageIndex, ref sendPackageIndex));
         }
 
-        public List<Package> ReceivePackages(IPEndPoint clientIEP)
+        public List<Package> ReceivePackages(IPEndPoint clientIEP, ref int packageIndex, ref int sendPackageIndex)
         {
-            var packageCount = (int)Receive(clientIEP).Data[0];
-            
-            Send(0, clientIEP);
+            var packageCount = (int)Receive(clientIEP, ref packageIndex).Data[0];
+
+            Send(0, clientIEP, sendPackageIndex++);
 
             var packages = new List<Package>();
 
             for (var i = 0; i < packageCount; i++)
             {
-                packages.Add(Receive(clientIEP));
+                packages.Add(Receive(clientIEP, ref packageIndex));
             }
 
             return packages;
@@ -117,13 +112,13 @@ namespace Core.Sockets.Udp
             return array;
         }
 
-        public void Send(double[] array, IPEndPoint clientIEP, ref int firstPackageNum)
+        public void Send(double[] array, IPEndPoint clientIEP, ref int firstPackageNum, ref int receivePackageIndex)
         {
             var packageCount = CalculatePackageCount(array.Length);
 
-            Send(packageCount, clientIEP);
+            Send(packageCount, clientIEP, firstPackageNum++);
 
-            Receive(clientIEP);
+            Receive(clientIEP, ref receivePackageIndex);
 
             for (var i = 0; i < packageCount; i++)
             {
@@ -146,7 +141,7 @@ namespace Core.Sockets.Udp
             }
         }
 
-        public void Send(double number, IPEndPoint clientIEP, int packageNum = 0)
+        public void Send(double number, IPEndPoint clientIEP, int packageNum)
         {
             var package = new Package { Id = packageNum, Data = new double[1] { number } };
             var data = Encoding.ASCII.GetBytes(JsonConvert.SerializeObject(package));

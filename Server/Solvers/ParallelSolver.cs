@@ -1,24 +1,20 @@
-﻿using Core.Methods.Linear;
-using Core.Methods.Parallel;
+﻿using Core.Methods.Parallel;
 using Core.Sockets.Udp;
 using DataAccess.Managers;
 using Server.Loggers;
-using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
-using System.Net.Sockets;
-using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace Server.Solvers
 {
     public class ParallelSolver : GaussMethodSolverParallel
-    { 
+    {
         private readonly UdpSocket _server;
-        private List<IPEndPoint> _activeClients;
+        private List<Node> _nodes;
+
 
         private readonly IFileManager _fileManager;
         private readonly ITimeLogger _timeLogger;
@@ -31,7 +27,7 @@ namespace Server.Solvers
         public ParallelSolver(int port, string ipAddress, IFileManager fileManager, ITimeLogger timeLogger)
         {
             _server = new UdpSocket(ipAddress, port);
-            _activeClients = new List<IPEndPoint>();
+            _nodes = new List<Node>();
             _fileManager = fileManager;
             _timeLogger = timeLogger;
         }
@@ -39,17 +35,18 @@ namespace Server.Solvers
         public void StartServer(string nodesSilePath)
         {
             var addresses = _fileManager.GetNodesAddresses(nodesSilePath);
+            var index = 0;
 
             foreach (var addr in addresses)
             {
                 var address = addr.Split(':');
                 var nodeAddress = new IPEndPoint(IPAddress.Parse(address[0]), int.Parse(address[1]));
 
-                _server.Send(-1, nodeAddress);
-                _server.Receive(nodeAddress);
+                _server.Send(-1, nodeAddress, 0);
+                _server.Receive(nodeAddress, ref index);
 
-                _activeClients.Add(nodeAddress);
-                Notify.Invoke(_activeClients.Count, addr);
+                _nodes.Add(new Node { IEP = nodeAddress, ReceivedPackegesCount = 0, SentPackgesCount = 0 });
+                Notify.Invoke(_nodes.Count, addr);
             }
 
         }
@@ -69,7 +66,7 @@ namespace Server.Solvers
 
             stopwatch.Reset();
             stopwatch.Start();
-            
+
             SendRows(matrix, vector);
 
             for (var i = 0; i < matrix.Length; i++)
@@ -81,9 +78,9 @@ namespace Server.Solvers
 
             stopwatch.Stop();
 
-            foreach (var client in _activeClients)
+            foreach (var node in _nodes)
             {
-                _server.Send(1, client);
+                _server.Send(1, node.IEP, node.SentPackgesCount++);
             }
 
             _timeLogger.SolvingTime = stopwatch.ElapsedMilliseconds;
@@ -93,55 +90,69 @@ namespace Server.Solvers
 
         private void SendRows(double[][] matrix, double[] vector)
         {
-            Parallel.For(0, _activeClients.Count, i =>
+            Parallel.For(0, _nodes.Count, i =>
             {
-                var rowsCount = CalculateRowsCountForClient(matrix.Length, _activeClients.Count, i);
+                var rowsCount = CalculateRowsCountForClient(matrix.Length, _nodes.Count, i);
                 var vectorRequest = new double[rowsCount];
                 var iterator = 0;
-                var index = 0;
+                var sendIndex = _nodes[i].SentPackgesCount;
+                var receiveIndex = _nodes[i].ReceivedPackegesCount;
 
-                _server.Send(new double[2] { rowsCount, vector.Length }, _activeClients[i], ref index);
+                _server.Send(new double[2] { rowsCount, vector.Length }, _nodes[i].IEP, ref sendIndex, ref receiveIndex);
 
-                for (var j = i; j < vector.Length; j += _activeClients.Count)
+                for (var j = i; j < vector.Length; j += _nodes.Count)
                 {
-                    _server.Send(matrix[j], _activeClients[i], ref index);
+                    _server.Send(matrix[j], _nodes[i].IEP, ref sendIndex, ref receiveIndex);
                     vectorRequest[iterator++] = vector[j];
                 }
 
-                _server.Send(vectorRequest, _activeClients[i], ref index);
+                _server.Send(vectorRequest, _nodes[i].IEP, ref sendIndex, ref receiveIndex);
+
+                _nodes[i].SentPackgesCount = sendIndex;
+                _nodes[i].ReceivedPackegesCount = receiveIndex;
 
             });
         }
 
         private void GetForwardPhase(int iteration, int matrixSize)
         {
-            var index = 0;
-
             var row = new double[matrixSize];
             var vector = 0.0;
 
-            for (var i = 0; i < _activeClients.Count; i++)
+            for (var i = 0; i < _nodes.Count; i++)
             {
-                if (i == (iteration % _activeClients.Count()))
+                if (i == (iteration % _nodes.Count()))
                 {
-                    _server.Send(0, _activeClients[i]);
+                    var receiveIndex = _nodes[i].ReceivedPackegesCount;
+                    var sendIndex = _nodes[i].SentPackgesCount;
 
-                    row = _server.ReceiveArray(_activeClients[i]);
-                    vector = _server.Receive(_activeClients[i]).Data[0];
+                    _server.Send(0, _nodes[i].IEP, sendIndex++);
+
+                    row = _server.ReceiveArray(_nodes[i].IEP, ref receiveIndex, ref sendIndex);
+                    vector = _server.Receive(_nodes[i].IEP, ref receiveIndex).Data[0];
+
+                    _nodes[i].SentPackgesCount = sendIndex;
+                    _nodes[i].ReceivedPackegesCount = receiveIndex;
                 }
                 else
                 {
-                    _server.Send(1, _activeClients[i]);
+                    _server.Send(1, _nodes[i].IEP, _nodes[i].SentPackgesCount++);
                 }
             }
 
-            for (var i = 0; i < _activeClients.Count; i++)
+            for (var i = 0; i < _nodes.Count; i++)
             {
-                if (i != (iteration % _activeClients.Count()))
+                if (i != (iteration % _nodes.Count()))
                 {
-                    _server.Send(vector, _activeClients[i]);
-                    _server.Receive(_activeClients[i]);
-                    _server.Send(row, _activeClients[i], ref index);
+                    var receiveIndex = _nodes[i].ReceivedPackegesCount;
+                    var sendIndex = _nodes[i].SentPackgesCount;
+
+                    _server.Send(vector, _nodes[i].IEP, sendIndex++);
+                    _server.Receive(_nodes[i].IEP, ref receiveIndex);
+                    _server.Send(row, _nodes[i].IEP, ref sendIndex, ref receiveIndex);
+
+                    _nodes[i].SentPackgesCount = sendIndex;
+                    _nodes[i].ReceivedPackegesCount = receiveIndex;
                 }
             }
         }
@@ -149,23 +160,31 @@ namespace Server.Solvers
         private double[] GetBackPhase(double[][] matrix, double[] vector)
         {
 
-            for (var i = 0; i < _activeClients.Count; i++)
+            for (var i = 0; i < _nodes.Count; i++)
             {
-                _server.Send(0, _activeClients[i]);
+                var receiveIndex = _nodes[i].ReceivedPackegesCount;
+                var sendIndex = _nodes[i].SentPackgesCount;
 
-                var rowsCount = _server.Receive(_activeClients[i]).Data[0];
-                _server.Send(0, _activeClients[i]);
-                var arrays = _server.ReceiveMatrix((int) rowsCount, _activeClients[i]);
-                _server.Send(0, _activeClients[i]);
-                var vectorList = _server.ReceiveArray(_activeClients[i]);
-                var iteration = i; 
+                _server.Send(0, _nodes[i].IEP, sendIndex++);
+
+                var rowsCount = _server.Receive(_nodes[i].IEP, ref receiveIndex).Data[0];
+                _server.Send(0, _nodes[i].IEP, sendIndex++);
+
+                var arrays = _server.ReceiveMatrix((int)rowsCount, _nodes[i].IEP, ref receiveIndex, ref sendIndex);
+                _server.Send(0, _nodes[i].IEP, sendIndex++);
+
+                var vectorList = _server.ReceiveArray(_nodes[i].IEP, ref receiveIndex, ref sendIndex);
+                var iteration = i;
 
                 for (var j = 0; j < rowsCount; j++)
                 {
                     matrix[iteration] = arrays[j];
                     vector[iteration] = vectorList[j];
-                    iteration += _activeClients.Count;
+                    iteration += _nodes.Count;
                 }
+
+                _nodes[i].SentPackgesCount = sendIndex;
+                _nodes[i].ReceivedPackegesCount = receiveIndex;
             }
 
             return ExecuteBackPhaseIteration(matrix, vector);
@@ -186,6 +205,14 @@ namespace Server.Solvers
         public string GetTimeLog()
         {
             return _timeLogger.GetLog();
+        }
+
+        private class Node
+        {
+            public IPEndPoint IEP { get; set; }
+            public int SentPackgesCount { get; set; }
+            public int ReceivedPackegesCount { get; set; }
+
         }
     }
 }

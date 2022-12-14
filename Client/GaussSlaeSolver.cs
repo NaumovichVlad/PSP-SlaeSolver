@@ -1,24 +1,22 @@
-﻿using Core.Methods.Linear;
-using Core.Methods.Parallel;
+﻿using Core.Methods.Parallel;
 using Core.Sockets.Udp;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Net;
-using System.Net.Sockets;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Client
 {
     public class GaussSlaeSolver : GaussMethodSolverParallel
     {
-        private UdpSocket _client;
+        private readonly UdpSocket _client;
+
+        private int _receivePackageIndex;
+        private int _sendPackageIndex;
         private IPEndPoint _serverIEP;
 
         public GaussSlaeSolver(int port, string ip)
         {
             _client = new UdpSocket(ip, port);
+            _receivePackageIndex = 0;
+            _sendPackageIndex = 0;
         }
 
         public bool Listen()
@@ -32,7 +30,7 @@ namespace Client
                 {
                     _serverIEP = remoteIp;
 
-                    _client.Send(0, _serverIEP);
+                    _client.Send(0, _serverIEP, 0);
 
                     return true;
                 }
@@ -50,21 +48,19 @@ namespace Client
         {
             try
             {
-                var sizes = _client.ReceiveArray(_serverIEP);
-                var rowsCount = (int) sizes[0];
+                var sizes = _client.ReceiveArray(_serverIEP, ref _receivePackageIndex, ref _sendPackageIndex);
+                var rowsCount = (int)sizes[0];
 
                 Console.WriteLine($"Expected rows count: {rowsCount}");
 
-                var matrixSize = (int) sizes[1];
+                var matrixSize = (int)sizes[1];
 
-                var rows = _client.ReceiveMatrix(rowsCount, _serverIEP);
+                var rows = _client.ReceiveMatrix(rowsCount, _serverIEP, ref _receivePackageIndex, ref _sendPackageIndex);
 
                 Console.WriteLine($"Number of rows received: {rows.Length}");
 
-                var vector = _client.ReceiveArray(_serverIEP);
+                var vector = _client.ReceiveArray(_serverIEP, ref _receivePackageIndex, ref _sendPackageIndex);
                 var rowsComplited = 0;
-                var index = 0;
-
 
                 Console.WriteLine($"Number of vector elements received: {vector.Length}");
 
@@ -76,34 +72,30 @@ namespace Client
                     {
                         Console.WriteLine("\nWaiting for the start of sending results...");
 
-                        _client.Receive(_serverIEP);
+                        _client.Receive(_serverIEP, ref _receivePackageIndex);
 
                         Console.WriteLine("\nSending started");
 
-                        index = 0;
+                        _client.Send(rowsCount, _serverIEP, _sendPackageIndex++);
 
-                        _client.Send(rowsCount, _serverIEP);
-
-                        _client.Receive(_serverIEP);
+                        _client.Receive(_serverIEP, ref _receivePackageIndex);
 
                         for (var j = 0; j < rowsCount; j++)
                         {
-                            _client.Send(rows[j], _serverIEP, ref index);
+                            _client.Send(rows[j], _serverIEP, ref _sendPackageIndex, ref _receivePackageIndex);
                         }
 
-                        _client.Receive(_serverIEP);
-
-                        _client.Send(vector, _serverIEP, ref index);
+                        _client.Receive(_serverIEP, ref _receivePackageIndex);
+                        _client.Send(vector, _serverIEP, ref _sendPackageIndex, ref _receivePackageIndex);
 
                         Console.WriteLine("\nForward phase complited");
 
-                        return 1 == _client.Receive(_serverIEP).Data[0];
+                        return 1 == _client.Receive(_serverIEP, ref _receivePackageIndex).Data[0];
                     }
-                    if (_client.Receive(_serverIEP).Data[0] == 0)
+                    if (_client.Receive(_serverIEP, ref _receivePackageIndex).Data[0] == 0)
                     {
-                        
-                        _client.Send(rows[rowsComplited], _serverIEP, ref index);
-                        _client.Send(vector[rowsComplited], _serverIEP);
+                        _client.Send(rows[rowsComplited], _serverIEP, ref _sendPackageIndex, ref _receivePackageIndex);
+                        _client.Send(vector[rowsComplited], _serverIEP, _sendPackageIndex++);
 
                         rowsComplited++;
 
@@ -111,9 +103,9 @@ namespace Client
                     }
                     else
                     {
-                        var mainVector = _client.Receive(_serverIEP).Data[0];
-                        _client.Send(0, _serverIEP);
-                        var mainRow = _client.ReceiveArray(_serverIEP);
+                        var mainVector = _client.Receive(_serverIEP, ref _receivePackageIndex).Data[0];
+                        _client.Send(0, _serverIEP, _sendPackageIndex++);
+                        var mainRow = _client.ReceiveArray(_serverIEP, ref _receivePackageIndex, ref _sendPackageIndex);
 
                         if (rowsComplited != rowsCount)
                         {
@@ -131,7 +123,5 @@ namespace Client
 
             return false;
         }
-
-        
     }
 }
